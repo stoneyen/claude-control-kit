@@ -42,6 +42,26 @@ After installing:
 5. Add a `cw` shell function to your rc pointing at the repo's
    `scripts/claude-worktree.sh`; start sessions with `cw` instead of `claude`.
 
+## Profiles — ready-made rulesets
+
+The base kit is deliberately empty of project-specific gates. **Profiles** layer
+a full, ready-made ruleset on top for a given project shape:
+
+```bash
+bash install.sh --profile python-ddd [--py-root backend] [target-repo]
+```
+
+- **`python-ddd`** — the full MyWB ruleset for a Python + Clean-Architecture/DDD
+  + spec-driven project: `ruff` · `mypy` · **arch/layering lint** (validate_arch,
+  22 rules — domain-imports-framework, float-money, `/api/` router rule, …) ·
+  entity-spec↔yaml sync · UC-spec classifiability · test-drift, plus a spec-first
+  hook and the DDD conventions for `CLAUDE.md`. Configure via `.dev/gates/profile.env`
+  (`CCK_PKG` = your `src/<pkg>`). Parameterized + verified against MyWB. See
+  [`profiles/python-ddd/README.md`](profiles/python-ddd/README.md).
+
+Add more profiles under `profiles/<name>/` (a `gates/` dir + optional scripts +
+a README); `install.sh --profile <name>` copies them in.
+
 ## The Claude Code skill
 
 `~/.claude/skills/scaffold-controls/` wraps this kit as a `/scaffold-controls`
