@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Primary commit gate — runs the project's gates in .dev/gates/ (see
+# .claude/hooks/gate-runner.sh). Activate per clone with:
+#   git config core.hooksPath .githooks
+set -uo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+exec "$ROOT/.claude/hooks/gate-runner.sh"

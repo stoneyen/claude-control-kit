@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Pre-push gate — runs every executable check in .dev/gates/push/ (if present).
+# Use for checks that are too slow per-commit but should block a push (e.g. a
+# test-drift diff against the base branch). Empty/absent dir → passes.
+# Bypass a known-clean push with `git push --no-verify`.
+set -uo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+DIR="$ROOT/.dev/gates/push"
+[ -d "$DIR" ] || exit 0
+rc=0
+for gate in "$DIR"/*; do
+  [ -f "$gate" ] && [ -x "$gate" ] || continue
+  case "$gate" in *.sample|*.md) continue;; esac
+  "$gate" || { echo "🚫 pre-push gate failed: $(basename "$gate")" >&2; rc=1; }
+done
+exit "$rc"

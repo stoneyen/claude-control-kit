@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# EXAMPLE gate — lint only the STAGED files of a given language. Copy to
+# `10-lint.sh`, `chmod +x`, and adapt the command to your toolchain. Delete the
+# languages you don't use. A gate reads staged files from stdin / $STAGED_FILES
+# and exits non-zero to block the commit.
+set -uo pipefail
+staged="$(cat)"   # newline-separated staged file paths (also in $STAGED_FILES)
+rc=0
+
+# --- Python (ruff) -----------------------------------------------------------
+py="$(printf '%s\n' "$staged" | grep -E '\.py$' || true)"
+if [ -n "$py" ] && command -v ruff >/dev/null; then
+  # shellcheck disable=SC2086
+  ruff check $py || rc=1
+fi
+
+# --- JS/TS (eslint) ----------------------------------------------------------
+js="$(printf '%s\n' "$staged" | grep -E '\.(ts|tsx|js|jsx)$' || true)"
+if [ -n "$js" ] && [ -x node_modules/.bin/eslint ]; then
+  # shellcheck disable=SC2086
+  node_modules/.bin/eslint $js || rc=1
+fi
+
+# --- Go ----------------------------------------------------------------------
+# go="$(printf '%s\n' "$staged" | grep -E '\.go$' || true)"
+# [ -n "$go" ] && command -v gofmt >/dev/null && { gofmt -l $go | grep -q . && rc=1; }
+
+exit "$rc"

@@ -1,0 +1,27 @@
+{
+  "_comment": "Merge this `hooks` block into the project's .claude/settings.json. If PreToolUse/PostToolUse/SessionStart already exist, append these entries to their arrays (don't overwrite). The scaffold-controls skill does the merge for you.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/pretooluse-bash.sh\"", "timeout": 200, "statusMessage": "commit gate" },
+          { "type": "command", "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/worktree-guard.sh\"", "timeout": 15, "statusMessage": "worktree guard" }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/worktree-guard-edit.sh\"", "timeout": 15 }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/session-start-register.sh\"", "timeout": 15 }
+        ]
+      }
+    ]
+  }
+}

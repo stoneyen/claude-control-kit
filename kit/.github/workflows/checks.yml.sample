@@ -1,0 +1,47 @@
+# CI QUALITY GATE — the server-side backstop for the local .dev/gates.
+# Copy to `checks.yml` and replace the placeholder steps with your project's
+# test/lint/type commands. Keep the job NAME `checks` — the deploy gate below
+# keys on it.
+name: checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # --- replace with your toolchain -------------------------------------
+      # - run: <install deps>
+      # - run: <lint>
+      # - run: <typecheck>
+      # - run: <test>
+      - run: echo "TODO: wire real checks here"
+---
+# ── DEPLOY GATE PATTERN (adapt in your image/deploy workflow) ───────────────
+# If a red `checks` must BLOCK deployment and your deploy is triggered by a
+# build/image workflow, DON'T trigger that workflow on `push` (it races checks
+# and ships even when they fail). Trigger it on `checks` SUCCESS instead:
+#
+#   on:
+#     workflow_run:
+#       workflows: ["checks"]
+#       types: [completed]
+#       branches: [main]        # scopes to push-to-main checks (PR checks excluded)
+#     workflow_dispatch:        # keep a manual escape hatch
+#   jobs:
+#     build:
+#       if: >
+#         github.event_name == 'workflow_dispatch' ||
+#         github.event.workflow_run.conclusion == 'success'
+#       steps:
+#         - uses: actions/checkout@v4
+#           with:
+#             ref: ${{ github.event.workflow_run.head_sha }}   # the commit checks passed on
+#         # workflow_run has no `paths:` — re-implement path filtering in-job with
+#         # `git diff --name-only "${SHA}^" "${SHA}"` if you had one.
+#
+# NOTE: workflow_run always uses the DEFAULT-BRANCH workflow file, so the gate
+# only activates AFTER this lands on the default branch. Verify on the next push.

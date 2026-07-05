@@ -1,0 +1,62 @@
+# CLAUDE.md
+
+Guidance for Claude Code (and humans) working in this repo. **These instructions
+override default behaviour — follow them.** Fill the `<...>` placeholders.
+
+## Project
+
+<one-paragraph description: what this is, the stack, the entry points.>
+
+## The `.dev/` sources of truth ⚠️
+
+Four `.dev/` subdirectories are the **single source of truth** for architecture,
+behaviour, hard-won ops knowledge, and multi-step work state. **Check them
+before making changes or answering design questions.**
+
+- **`.dev/adr/`** — Architecture Decision Records (one file per decision). Before
+  any architectural change, grep for a relevant ADR; align with it or supersede
+  it with a new ADR. Index of accepted ADRs:
+
+  | # | Title |
+  |---|---|
+  | ADR-000 | Record architecture decisions |
+  | <ADR-001> | <...> |
+
+- **`.dev/lessons/`** — learned-the-hard-way fixes, named by symptom. Grep before
+  debugging a non-obvious bug; write one after fixing a non-obvious bug.
+- **`.dev/tasks/`** — file-backed task ledger for multi-step work (survives
+  session boundaries). Use it to resume "where did we leave off?".
+- **`.dev/gates/`** — the project's commit gates (see the harness below).
+
+## Conventions
+
+- <coding style / naming / language versions.>
+- <test discipline: every behavioural change carries a matching test change.>
+- <architecture rules worth stating (layering, boundaries, money-as-decimal, …).>
+
+## Local enforcement hooks (the quality-gate harness)
+
+CI blocks at the PR boundary; these hooks shift the same discipline **left**:
+
+| Where | Mechanism | Blocks? |
+|---|---|---|
+| `git commit` | `.githooks/pre-commit` → `.claude/hooks/gate-runner.sh` runs `.dev/gates/*` on staged files | **yes** |
+| `git push` | `.githooks/pre-push` runs `.dev/gates/push/*` | **yes** (`--no-verify` bypasses) |
+| shared-tree stomp | `PreToolUse(Bash)` → `worktree-guard.sh` blocks `git checkout/switch/stash/reset --hard` when a live co-tenant shares the tree | **yes** (solo unaffected) |
+| shared-tree edit | `PreToolUse(Edit)` → `worktree-guard-edit.sh` | warn (`WT_ENFORCE=block`) |
+| commit fallback | `PreToolUse(Bash)` → `pretooluse-bash.sh` runs the gate when `core.hooksPath` isn't set | yes |
+
+- **Per-clone setup:** `git config core.hooksPath .githooks`. The Claude hooks in
+  `.claude/settings.json` + `.claude/hooks/` load automatically.
+- **Worktree-per-session:** start Claude sessions with the `cw` shell function
+  (wrapping `scripts/claude-worktree.sh`) so each session gets an isolated
+  worktree — auto-removed on exit if clean. Bypass a guard once with
+  `WT_ALLOW_SHARED_TREE=1`.
+- **Add gates** by dropping executable scripts in `.dev/gates/` (see its README).
+
+## Commands
+
+```bash
+# <install>
+# <test>  <lint>  <typecheck>  <run>
+```
