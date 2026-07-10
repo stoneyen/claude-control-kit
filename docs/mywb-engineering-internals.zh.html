@@ -662,6 +662,25 @@ node_modules/.bin/eslint $js   <span class="c"># 非 0 = 擋 commit</span></pre>
   </div>
 </section>
 
+<!-- 19b EXAMPLE MAPPING -->
+<section class="slide">
+  <div class="eyebrow">同一個例子 · 每一步背後哪支 script</div>
+  <h2>「加 <code>credit_limit</code>」每一步<span class="accent">觸發了什麼</span></h2>
+  <p class="sub">承接全貌篇那條開發者旅程 —— 這裡把每一步對應到前面拆解過的那支具體檔案。</p>
+  <table>
+    <tr><th>開發者做的</th><th>觸發的機制 / 檔</th></tr>
+    <tr><td>① <code>cw add-credit-limit</code> 開 session</td><td><code>claude-worktree.sh</code>(<code>git worktree add -b</code>)+ <code>session-start-register.sh</code>(登記心跳)</td></tr>
+    <tr><td>② 編輯 <code>domain/…/entity.py</code></td><td>PreToolUse(Edit) → <code>spec-first.sh</code>(提醒,不擋)</td></tr>
+    <tr><td>③ 寫 entity Attributes + UC yaml</td><td>兩者由 <code>check_spec_sync.py</code> 綁死 → <code>phantom-in-yaml</code> / <code>type-mismatch</code></td></tr>
+    <tr><td>④ 欄位型別用 <code>Money</code></td><td><code>validate_arch.py</code> · <code>check_money_typing</code> + <code>check_decimal_money_from_float</code></td></tr>
+    <tr><td>⑤ <code>git commit</code></td><td><code>.githooks/pre-commit</code> → <code>gate-runner.sh</code> → {<code>check_test_drift --strict</code> · <code>validate_arch</code> · <code>check_spec_sync</code> · ruff · mypy};新 aggregate 無 spec 目錄 → spec-existence 擋</td></tr>
+    <tr><td>⑥ 並行時 <code>git checkout</code></td><td><code>worktree-guard.sh</code>:<code>is_dangerous()</code> ✓ 且 <code>sr_cotenants ≥ 1</code> → <code>exit 2</code></td></tr>
+    <tr><td>⑦ push / PR</td><td><code>.githooks/pre-push</code>(test-drift)→ <code>checks.yml</code>(backend / web / web-perf)</td></tr>
+    <tr><td>⑧ merge → 部署</td><td>checks 成功 → <code>backend-image.yml</code> <code>on: workflow_run · if conclusion=='success'</code> · checkout <code>head_sha</code> · <code>git diff</code> path 過濾 → Flux → <code>verify-deployed-code.sh</code> + <code>smoke-api.sh</code></td></tr>
+  </table>
+  <p class="lead" style="margin-top:.8rem">同一條路,前面每個「阻力」在這裡都對應到一支<b>具體、可讀、可改</b>的 script。要調整某一步的行為,就改那一支。</p>
+</section>
+
 <!-- 20 PRINCIPLES -->
 <section class="slide">
   <div class="eyebrow">貫穿所有 script 的設計原則</div>

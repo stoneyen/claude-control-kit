@@ -431,6 +431,24 @@ $ git checkout main
   <p class="lead" style="margin-top:1.5rem">注意這個形狀:<b>同一批規則</b>(spec-first、test-drift、arch)在編輯時、commit 時、CI 裡各查一次。刻意重複 —— 每一層都是上一層的安全網。</p>
 </section>
 
+<!-- 16b WORKED EXAMPLE -->
+<section class="slide">
+  <div class="eyebrow">一個具體例子 · 跟著一個變更走一遍</div>
+  <h2>「幫 <code>CardAccount</code> 加一個 <span class="accent">credit_limit</span> 並在 API 顯示」</h2>
+  <p class="sub">同樣一件小事,在這套 harness 下開發者實際會遇到什麼 —— 每一處「阻力」其實都是護欄。</p>
+  <ol style="font-size:.98rem;line-height:1.7;max-width:78ch;margin:.2rem 0">
+    <li><b>開 session</b> → <code>cw add-credit-limit</code> → 自動落在<b>獨立 worktree</b>,不碰別人的樹。</li>
+    <li>想直接改 <code>domain/card_account/entity.py</code> → <b>spec-first 提醒</b>跳出 <span class="pill warn">先寫 spec</span></li>
+    <li><b>寫 spec + 與 owner review</b>:entity spec 的 Attributes 表加一列、<code>update-card.yaml</code> 的 inline schema 跟上。</li>
+    <li><b>實作</b>:domain 用 <code>Money</code>(不是 float)、UC、router 的 <code>CardResponse</code> 加欄位、補一個測試。</li>
+    <li><code>git commit</code> → <b>commit gate</b>:忘了測試 → <span class="pill block">test-drift 擋</span> · spec 表與 yaml 對不上 → <span class="pill block">spec-sync 擋</span> · 用了 float → <span class="pill block">arch 擋</span>。修好才過。</li>
+    <li>(若沒開 worktree、又有並行 session)<code>git checkout</code> 切分支比對 → <span class="pill block">worktree guard 擋</span>,叫你開 worktree。</li>
+    <li><b>push → PR</b> → CI 完整跑一次(pytest · tsc -b · vitest)。</li>
+    <li><b>merge</b> → main 的 checks 綠 → <b>image build</b> → Flux 部署 → <code>verify-deployed-code.sh</code> + smoke 確認線上真的是這版。</li>
+  </ol>
+  <p class="lead" style="margin-top:.9rem">重點體驗:每個 gate 都在你<b>還沒犯錯太遠</b>時就攔下,而且訊息直接告訴你怎麼修 —— <span class="accent">阻力即護欄</span>。</p>
+</section>
+
 <!-- 17 WAR STORIES -->
 <section class="slide">
   <div class="eyebrow">每條規則都有來由</div>

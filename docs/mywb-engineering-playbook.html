@@ -432,6 +432,24 @@ Use an isolated worktree:
   <p class="lead" style="margin-top:1.5rem">Notice the shape: <b>the same rules</b> (spec-first, test-drift, arch) are checked at the edit, at the commit, and in CI. Redundant on purpose — each layer is a net under the one above.</p>
 </section>
 
+<!-- 16b WORKED EXAMPLE -->
+<section class="slide">
+  <div class="eyebrow">A concrete example · follow one change end-to-end</div>
+  <h2>"Add a <span class="accent">credit_limit</span> to <code>CardAccount</code> and surface it in the API"</h2>
+  <p class="sub">The same small task, and what a developer actually hits under this harness — every point of "friction" is a guardrail.</p>
+  <ol style="font-size:.98rem;line-height:1.7;max-width:80ch;margin:.2rem 0">
+    <li><b>Start a session</b> → <code>cw add-credit-limit</code> → you land in an <b>isolated worktree</b>; you can't touch anyone else's tree.</li>
+    <li>You go to edit <code>domain/card_account/entity.py</code> → the <b>spec-first hook</b> nudges: <span class="pill warn">write the spec first</span></li>
+    <li><b>Write the spec + review with the owner</b>: a row in the entity spec's Attributes table; the <code>update-card.yaml</code> inline schema follows.</li>
+    <li><b>Implement</b>: a <code>Money</code> field in domain (not float), the use case, add the field to the router's <code>CardResponse</code>, and a test.</li>
+    <li><code>git commit</code> → the <b>commit gate</b>: forgot the test → <span class="pill block">test-drift blocks</span> · spec table ≠ yaml → <span class="pill block">spec-sync blocks</span> · used a float → <span class="pill block">arch blocks</span>. Fix, then it passes.</li>
+    <li>(If you skipped the worktree and a co-tenant is live) a <code>git checkout</code> to compare branches → <span class="pill block">worktree guard blocks</span>, tells you to use a worktree.</li>
+    <li><b>push → PR</b> → CI runs the full suite (pytest · tsc -b · vitest).</li>
+    <li><b>merge</b> → checks on main go green → <b>image build</b> → Flux deploys → <code>verify-deployed-code.sh</code> + smoke confirm the live pod really is this commit.</li>
+  </ol>
+  <p class="lead" style="margin-top:.9rem">The experience: each gate catches you <b>before you've gone far wrong</b>, and its message tells you how to fix it — <span class="accent">friction as guardrail</span>.</p>
+</section>
+
 <!-- 17 WAR STORIES -->
 <section class="slide">
   <div class="eyebrow">Every rule earned its place</div>
