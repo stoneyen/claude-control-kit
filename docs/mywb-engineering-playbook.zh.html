@@ -436,10 +436,12 @@ $ git checkout main
   <h2>人看不到的,交給<span class="accent">機器與多模型</span></h2>
   <div class="cols">
     <div>
-      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">異質 LLM code review</h3>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">異質 LLM code review —— <span style="color:var(--brass-soft)">強制部署閘門(ADR-076)</span></h3>
       <ul>
         <li><code>/multi-review</code> —— 把 <code>git diff main...HEAD</code> 同時丟給 <b>三家</b>(Claude · Gemini CLI · Codex CLI)並行 review,再綜合成跨模型一致度報告。單一模型的盲點,另兩家常補到。</li>
-        <li><b>strict-review 觸發</b>:diff 動到 aggregate/UC/router/migration/ADR 時,自動建議先跑 review 才開 PR。</li>
+        <li><b>strict-review 觸發</b>:diff 動到 aggregate/UC/router/migration/ADR/CLAUDE.md 時,<b>不再是建議 —— 是強制</b>。必須跑 review、解掉所有 critical(或明確 waive)才能 merge。</li>
+        <li><b>怎麼強制</b>(branch-protection 在此方案回 403,所以借 ADR-065 那根槓桿):verdict 走 commit trailer <code>REVIEW-VERDICT: pass</code> / <code>REVIEW-WAIVED: &lt;理由&gt;</code>;<code>checks</code> 裡的 <code>review-gate</code> job 對 strict diff 驗這條 trailer → <b>沒 review → checks 紅 → 無 image → 無部署</b>。</li>
+        <li><b>兩層</b>:<code>review-guard.sh</code> PreToolUse hook 在 <code>gh pr merge</code> 當下就擋(快速回饋);CI 的 <code>review-gate</code> 才是真牆。誠實邊界:強制的是「review 有跑 + critical 已解決/waive」,不是 review <em>品質</em>。</li>
         <li><code>/security-review</code> —— 對變更做專門的安全審查。</li>
       </ul>
     </div>
@@ -489,7 +491,7 @@ $ git checkout main
     <div class="step gate"><span class="s">4 · push / PR</span>完整 CI checks</div>
   </div>
   <div class="flow" style="margin-top:.6rem">
-    <div class="step gate"><span class="s">5 · merge</span>main 上的 checks</div><div class="arrow">→</div>
+    <div class="step gate"><span class="s">5 · merge</span>main 上的 checks + review-gate</div><div class="arrow">→</div>
     <div class="step ok"><span class="s">6 · build</span>checks 綠才建 image</div><div class="arrow">→</div>
     <div class="step ok"><span class="s">7 · deploy</span>flux · 不可變 ref</div><div class="arrow">→</div>
     <div class="step ok"><span class="s">8 · verify</span>running==intended + smoke</div>

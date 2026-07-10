@@ -280,6 +280,7 @@
   <pre style="margin-top:.9rem"><span class="c"># hook 讀 stdin 的 JSON;exit 2 = 擋(stderr 回饋給 agent);exit 0 = 放行</span>
 PreToolUse(Bash)   → pretooluse-bash.sh <span class="c"># commit fallback + push-to-main 警告</span>
                    → worktree-guard.sh  <span class="c"># 並行守衛</span>
+                   → review-guard.sh    <span class="c"># ADR-076:strict diff 缺 review 就擋 gh pr merge</span>
 PreToolUse(Edit)   → spec-first.sh + worktree-guard-edit.sh
 PostToolUse(Edit)  → post-edit-ruff.sh <span class="c"># 剛編輯的檔 lint(回饋,不擋)</span>
 SessionStart       → session-start-register.sh <span class="c"># 登記 + 提醒</span></pre>
