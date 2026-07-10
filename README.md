@@ -85,4 +85,4 @@ self-contained slide deck explaining the governance model behind this kit
 (sources of truth, CLAUDE.md, the enforcement harness, spec-first, CI/CD deploy
 gate, worktree isolation) so a team can understand *why* and apply it to their
 own projects. Open in a browser; arrow keys / space to navigate, `f` for
-fullscreen. 中文版:[`docs/mywb-engineering-playbook.zh.html`](docs/mywb-engineering-playbook.zh.html)。
+fullscreen. 中文版:[`docs/mywb-engineering-playbook.zh.html`](docs/mywb-engineering-playbook.zh.html)。實作細節篇(下一層 script/CLAUDE.md/spec/ADR/hook/CI):[`docs/mywb-engineering-internals.zh.html`](docs/mywb-engineering-internals.zh.html)。

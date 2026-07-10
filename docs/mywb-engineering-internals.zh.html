@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>實作細節篇 — CLAUDE.md / ADR / spec / hooks / gate scripts 怎麼設計</title>
+<style>
+  :root{
+    --bg:#0b0a08; --panel:#151310; --ink:#efe9dd; --muted:#a89f8d;
+    --brass:#c9a24a; --brass-soft:#e6c877; --sage:#5e9e7e; --oxblood:#c26a5c; --slate:#7e93c8;
+    --line:#2a251d; --code:#0e0c09;
+    --serif:"Newsreader","Songti TC","Noto Serif CJK TC",Georgia,serif;
+    --ui:-apple-system,BlinkMacSystemFont,"PingFang TC","Heiti TC","Microsoft JhengHei","Segoe UI",Roboto,sans-serif;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--ui);
+    font-feature-settings:"tnum";-webkit-font-smoothing:antialiased;overflow:hidden}
+  .deck{height:100vh;width:100vw;position:relative}
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;
+    padding:4.6vh 6vw 7vh;opacity:0;transition:opacity .26s ease;overflow:auto}
+  .slide.active{display:flex;opacity:1}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;margin:0}
+  .eyebrow{font-family:var(--ui);text-transform:uppercase;letter-spacing:.16em;font-size:.72rem;
+    color:var(--brass);font-weight:700;margin-bottom:.9rem}
+  h2{font-size:clamp(1.5rem,3vw,2.4rem);line-height:1.16;color:#fff;margin-bottom:.35rem}
+  .sub{color:var(--muted);font-size:clamp(.95rem,1.35vw,1.1rem);max-width:60ch;margin-bottom:1.2rem;line-height:1.65}
+  p{line-height:1.65}
+  ul{margin:.2rem 0;padding-left:1.1rem}
+  li{margin:.4rem 0;line-height:1.6;color:var(--ink);font-size:.94rem}
+  li b, p b{color:#fff}
+  .accent{color:var(--brass-soft)}
+  code,kbd{font-family:var(--mono);background:var(--code);border:1px solid var(--line);
+    border-radius:5px;padding:.06em .38em;font-size:.86em;color:var(--brass-soft)}
+  pre{font-family:var(--mono);background:var(--code);border:1px solid var(--line);border-radius:10px;
+    padding:.85rem 1.05rem;overflow:auto;font-size:.78rem;line-height:1.5;color:#d6cebb;margin:.5rem 0}
+  pre b{color:#fff;font-weight:600}
+  pre .c{color:#736c5d}
+  pre .k{color:var(--sage)}
+  pre .r{color:var(--oxblood)}
+  pre .b{color:var(--brass-soft)}
+  pre .s{color:var(--slate)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:1.3rem}
+  .cols5545{display:grid;grid-template-columns:1.15fr .85fr;gap:1.3rem}
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.9rem 1.1rem}
+  .card h3{font-size:1.02rem;color:#fff;margin-bottom:.3rem}
+  .card .t{font-size:.83rem;color:var(--muted);line-height:1.6}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.7rem;padding:.1em .5em;border-radius:6px;
+    border:1px solid var(--line);color:var(--brass-soft);background:#000;margin-right:.25rem}
+  table{border-collapse:collapse;width:100%;font-size:.83rem;margin-top:.3rem}
+  th,td{text-align:left;padding:.45rem .6rem;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55}
+  th{color:var(--brass);letter-spacing:.05em;font-size:.72rem;font-weight:700}
+  td b{color:#fff} td code{font-size:.82em}
+  .muted{color:var(--muted)}
+  .foot{position:absolute;left:6vw;right:6vw;bottom:2.3vh;display:flex;justify-content:space-between;
+    align-items:center;font-size:.72rem;color:#6b6456;font-family:var(--mono)}
+  .foot .brand{color:var(--brass)}
+  .progress{position:absolute;left:0;bottom:0;height:3px;background:var(--brass);transition:width .26s ease;z-index:5}
+  .hint{position:absolute;right:2vw;bottom:1vh;font-size:.66rem;color:#4a453b;font-family:var(--mono)}
+  .lead{font-size:.98rem;color:var(--ink);max-width:66ch;line-height:1.7}
+  .divider{height:1px;background:var(--line);margin:.9rem 0}
+  .pill{display:inline-block;padding:.12em .55em;border-radius:999px;font-size:.72rem;font-weight:700}
+  .pill.block{background:rgba(194,106,92,.18);color:var(--oxblood);border:1px solid rgba(194,106,92,.4)}
+  .pill.warn{background:rgba(201,162,74,.16);color:var(--brass-soft);border:1px solid rgba(201,162,74,.4)}
+  .pill.ok{background:rgba(94,158,126,.16);color:var(--sage);border:1px solid rgba(94,158,126,.4)}
+  .title-wrap{margin:auto 0}
+  .filepath{font-family:var(--mono);font-size:.74rem;color:var(--brass);background:#000;border:1px solid var(--line);
+    border-radius:6px;padding:.15em .5em;display:inline-block;margin-bottom:.5rem}
+  .two-list{columns:2;column-gap:2rem} .two-list li{break-inside:avoid}
+  .grid-map{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-top:.6rem}
+  .grid-map .m{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.7rem .85rem}
+  .grid-map .m .n{font-family:var(--mono);font-size:.74rem;color:var(--brass-soft)}
+  .grid-map .m .d{font-size:.78rem;color:var(--muted);margin-top:.25rem;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide active">
+  <div class="title-wrap">
+    <div class="eyebrow">實作細節篇 · 承接「工程實務手冊」的下一層</div>
+    <h1 style="font-size:clamp(2rem,5vw,3.6rem);line-height:1.15;color:#fff;max-width:22ch">
+      這些 gate <span class="accent">實際上怎麼做</span>的</h1>
+    <p class="sub" style="margin-top:1.3rem;font-size:1.1rem">
+      拆開每個檔案:<b>CLAUDE.md</b> 的結構、<b>ADR</b> 與 <b>spec</b> 的格式、
+      每支 <b>hook / gate script</b> 的設計,以及 <b>CI</b> 的 workflow。
+      給要實作與維護這套 harness 的工程師。</p>
+    <p class="lead" style="margin-top:1rem;color:var(--muted)">
+      片段皆為<b>真實原始碼</b>(取自 <code>claude-control-kit</code> 與參考專案)。</p>
+  </div>
+</section>
+
+<!-- 2 MAP -->
+<section class="slide">
+  <div class="eyebrow">拆解地圖</div>
+  <h2>我們要一個一個拆的檔案</h2>
+  <div class="grid-map">
+    <div class="m"><div class="n">CLAUDE.md</div><div class="d">agent 的操作手冊 + ADR 索引</div></div>
+    <div class="m"><div class="n">.dev/adr/ADR-NNN.md</div><div class="d">決策紀錄 + 編號/supersede</div></div>
+    <div class="m"><div class="n">&lt;agg&gt;-spec.md + *.yaml</div><div class="d">entity spec + use-case 規格</div></div>
+    <div class="m"><div class="n">session-registry.sh</div><div class="d">co-tenant 心跳登記</div></div>
+    <div class="m"><div class="n">worktree-guard.sh</div><div class="d">並行守衛(PreToolUse)</div></div>
+    <div class="m"><div class="n">gate-runner.sh</div><div class="d">可插拔 commit gate runner</div></div>
+    <div class="m"><div class="n">pretooluse-bash.sh</div><div class="d">commit 派發器 + fallback</div></div>
+    <div class="m"><div class="n">validate_arch.py</div><div class="d">22 條 AST 架構 lint</div></div>
+    <div class="m"><div class="n">check_test_drift / spec_sync</div><div class="d">漂移偵測</div></div>
+    <div class="m"><div class="n">.claude/settings.json</div><div class="d">hook 接線(matcher)</div></div>
+    <div class="m"><div class="n">claude-worktree.sh</div><div class="d">per-session worktree launcher</div></div>
+    <div class="m"><div class="n">.github/workflows/*.yml</div><div class="d">checks + workflow_run 部署 gate</div></div>
+  </div>
+  <p class="lead" style="margin-top:1rem">貫穿全部的三個設計原則:<b>idempotent(可重跑)· fail-loud(壞就大聲)· 非破壞(不覆蓋既有檔、不擋單人流程)</b>。</p>
+</section>
+
+<!-- 3 CLAUDE.md ANATOMY -->
+<section class="slide">
+  <div class="eyebrow">CLAUDE.md · 解剖</div>
+  <h2>操作手冊的<span class="accent">結構</span></h2>
+  <div class="cols5545">
+    <div>
+      <p class="lead">它是 agent 每次 session 最先載入、且被要求遵守的檔。段落不是章節,是<b>行為規約</b>:</p>
+      <table style="margin-top:.5rem">
+        <tr><th>段落</th><th>作用(對 agent)</th></tr>
+        <tr><td><code>How ADRs &amp; specs are recorded ⚠️</code></td><td>四個 <code>.dev/</code> 源頭是真相;改前先查。含 <b>ADR 索引表</b>。</td></tr>
+        <tr><td><code>Avoiding test drift ⚠️</code></td><td>每個行為變更帶測試;哪種改動要哪種測試。</td></tr>
+        <tr><td><code>Architecture: CA + DDD</code></td><td>分層非妥協項、Money-as-Decimal、<code>/api/</code> router 規則。</td></tr>
+        <tr><td><code>Session / shell habits</code></td><td>「每個 until 迴圈要 timeout」「同 aggregate 不存兩次」。</td></tr>
+        <tr><td><code>Commands</code></td><td>怎麼跑測試/lint/部署 —— agent 直接照抄。</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>設計要點</h3>
+      <div class="t" style="margin-top:.35rem">
+        ① <b>可 grep</b>:ADR 索引一行一決策,agent 秒查「這改動牴觸哪條決策」。<br><br>
+        ② <b>祈使句</b>:每行回答「該做/不該做什麼」。純描述結構的行是噪音。<br><br>
+        ③ <b>⚠️ 標記</b>硬性規則,和一般指引區分。<br><br>
+        ④ <b>自我維護</b>:CLAUDE.md 是 strict-review 觸發項,漂移了就 docs-sync。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ADR -->
+<section class="slide">
+  <div class="eyebrow">ADR · 檔案設計</div>
+  <h2>一決策一檔,<span class="accent">用號碼串起推理鏈</span></h2>
+  <div class="cols">
+    <div>
+      <pre><span class="c"># ADR-000 — Record architecture decisions</span>
+- <b>Date:</b> &lt;YYYY-MM-DD&gt;
+- <b>Status:</b> <span class="k">Accepted</span> | Proposed | Superseded
+
+## Context      <span class="c"># 當時的取捨、為什麼要決定</span>
+## Decision     <span class="c"># 決定了什麼(祈使、可執行)</span>
+## Consequences <span class="c"># 好處 + 代價,都寫</span>
+## Alternatives Considered
+## Related Decisions   <span class="c"># 連到相關 ADR 號</span>
+## Notes</pre>
+      <ul style="margin-top:.5rem">
+        <li><b>檔名帶號 + slug</b>:<code>ADR-065-checks-gate-blocks-deploy.md</code>。</li>
+        <li><b>supersede 不刪</b>:新 ADR 指名它取代誰,推理鏈完整。</li>
+        <li><b>Status</b> 讓「Proposed / Accepted / Superseded」一眼可辨。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>並行工作的 ⚠️ 陷阱:撞號</h3>
+      <div class="t" style="margin-top:.35rem">多個 session 各自取「下一個號」→ 兩份 <code>ADR-064</code>。這是真實踩過的。</div>
+      <div class="divider"></div>
+      <div class="t"><b>解法慣例:</b>先提交的保留原號;耦合較深(被 code 引用多)的保留原號,另一份改到空號並更新全部引用。CLAUDE.md 索引裡留一則「已解決」註記。</div>
+      <div class="divider"></div>
+      <div class="t"><b>更好的預防:</b>就是 worktree 隔離(後面 §)—— 減少並行同 tree 取號。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ENTITY SPEC -->
+<section class="slide">
+  <div class="eyebrow">spec · entity-spec.md</div>
+  <h2>aggregate 的<span class="accent">結構規格</span></h2>
+  <div class="cols5545">
+    <div>
+      <div class="filepath">.dev/specs/&lt;ctx&gt;/&lt;agg&gt;/entity/&lt;agg&gt;-spec.md</div>
+      <table>
+        <tr><th>段落</th><th>內容</th></tr>
+        <tr><td><code>Identity</code></td><td>aggregate 的 id 型別</td></tr>
+        <tr><td><code>Attributes</code></td><td>欄位表(名稱 · 型別 · 約束)—— <b>check_spec_sync 的比對來源</b></td></tr>
+        <tr><td><code>State Machine</code></td><td>合法狀態轉換</td></tr>
+        <tr><td><code>Invariants</code></td><td>永遠成立的規則(INV-1…)</td></tr>
+        <tr><td><code>Operations / Methods</code></td><td>方法 + 前後條件</td></tr>
+        <tr><td><code>Events Emitted</code></td><td>發出的 domain event 表</td></tr>
+        <tr><td><code>Cross-context References</code></td><td>跨 context 依賴</td></tr>
+        <tr><td><code>Read Models Driven…</code></td><td>此 aggregate 餵養的讀模型</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>為什麼分這些段</h3>
+      <div class="t" style="margin-top:.35rem">
+        每段對應一種<b>可被違反的東西</b>:Attributes → 型別漂移;Invariants → 領域規則;State Machine → 非法轉換;Events → 契約。
+        <div class="divider"></div>
+        <b>Attributes 表是正典</b>:當 use-case YAML 的 inline schema 與它衝突,<em>entity spec 贏</em>。這條規則讓 <code>check_spec_sync</code> 有明確的裁決方向。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 USECASE YAML -->
+<section class="slide">
+  <div class="eyebrow">spec · use-case YAML</div>
+  <h2>每個 use case 一份<span class="accent">自足規格</span></h2>
+  <div class="cols">
+    <div>
+      <pre><span class="s">useCase:</span> AddCard
+<span class="s">behavior:</span> |  <span class="c"># 一段白話描述</span>
+<span class="s">aggregate:</span> CardAccount
+<span class="s">aggregateId:</span> CardAccountId
+<span class="s">method:</span> __init__
+<span class="s">domainEvent:</span> card_account.events.CardAccountAdded
+<span class="s">repository:</span> CardAccountRepository
+<span class="s">output:</span> CardAccountId
+<span class="s">input:</span> ...
+<span class="s">useCasePreconditions:</span> ...
+<span class="s">constructorPreconditions:</span> ...
+<span class="s">constructorPostconditions:</span> ...
+<span class="s">sideEffects:</span> ...
+<span class="s">aggregates:</span> ...   <span class="c"># inline schema(可 codegen)</span>
+<span class="s">domainEvents:</span> ...  <span class="s">valueObjects:</span> ...
+<span class="s">enums:</span> ...  <span class="s">errors:</span> ...
+<span class="s">testScenarios:</span> ...  <span class="c"># 直接對應測試</span>
+<span class="s">references:</span> ...    <span class="c"># 連 ADR / 相關 spec</span></pre>
+    </div>
+    <div>
+      <ul>
+        <li><b>一 UC 一檔</b>:input、pre/postconditions、events、value objects、enums、errors、test scenarios 全在裡面 —— <b>self-contained,可直接 codegen</b>。</li>
+        <li><b>刻意重複 inline schema</b>(<code>aggregates:</code>)讓 YAML 獨立;代價是與 entity spec 重複 → 由 <code>check_spec_sync</code> 綁住。</li>
+        <li><b>先 review、後 <code>/execute-uc</code></b>:人核准 spec → 生成骨架 → 跑四道 gate。</li>
+        <li><b>detect_type</b> 判別 query(讀)vs command(寫);新 UC 沒帶判別子會被 <code>check_uc_spec_classifiable</code> 擋。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 7 SPEC-SYNC -->
+<section class="slide">
+  <div class="eyebrow">script · check_spec_sync.py</div>
+  <h2>把 entity spec ↔ YAML <span class="accent">綁死</span></h2>
+  <p class="sub">比對每個 <code>&lt;agg&gt;-spec.md</code> 的 Attributes 表,與同 aggregate 下每份 use-case YAML 的 inline <code>aggregates:</code> 區塊。</p>
+  <div class="cols">
+    <table>
+      <tr><th>違規</th><th>意義</th><th>結果</th></tr>
+      <tr><td><code>phantom-in-yaml</code></td><td>YAML 有、entity spec 沒有的屬性</td><td><span class="pill block">⛔ fail</span></td></tr>
+      <tr><td><code>type-mismatch</code></td><td>同名屬性、型別不同</td><td><span class="pill block">⛔ fail</span></td></tr>
+      <tr><td><code>missing-in-yaml</code></td><td>entity 屬性沒被任何 YAML 收錄</td><td><span class="pill warn">⚠ warn</span></td></tr>
+    </table>
+    <div class="card">
+      <h3>設計取捨</h3>
+      <div class="t" style="margin-top:.35rem">
+        <b>per-UC subset 是刻意的</b>:一個 UC 只 inline 它用到的屬性,不算漏 —— 所以 <code>missing-in-yaml</code> 只在「<em>所有</em> YAML 都沒收錄」時警告(真的覆蓋缺口)。
+        <div class="divider"></div>
+        <code>--strict</code> 把 warning 升級為 failure(CI 用);預設非嚴格(fail 只在真漂移)。這把警告噪音從 ~370 降到 0。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 HOOK ARCH -->
+<section class="slide">
+  <div class="eyebrow">hooks · 整體架構</div>
+  <h2>兩套 hook,<span class="accent">同一套紀律</span></h2>
+  <div class="cols">
+    <div class="card ok" style="border-left:3px solid var(--sage)">
+      <h3>git hooks(<code>.githooks/</code>)</h3>
+      <div class="t" style="margin-top:.3rem">擋<b>人與 agent</b>。<code>pre-commit</code> → gate-runner;<code>pre-push</code> → test-drift。每 clone 用 <code>git config core.hooksPath .githooks</code> 啟用。</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--brass)">
+      <h3>Claude Code hooks(<code>.claude/</code>)</h3>
+      <div class="t" style="margin-top:.3rem">agent 專屬守衛(worktree guard)+ 當 git hooks 沒接好時的 <b>fallback</b>。由 <code>settings.json</code> 的 matcher 綁定工具事件。</div>
+    </div>
+  </div>
+  <pre style="margin-top:.9rem"><span class="c"># hook 讀 stdin 的 JSON;exit 2 = 擋(stderr 回饋給 agent);exit 0 = 放行</span>
+PreToolUse(Bash)   → pretooluse-bash.sh <span class="c"># commit fallback + push-to-main 警告</span>
+                   → worktree-guard.sh  <span class="c"># 並行守衛</span>
+PreToolUse(Edit)   → spec-first.sh + worktree-guard-edit.sh
+PostToolUse(Edit)  → post-edit-ruff.sh <span class="c"># 剛編輯的檔 lint(回饋,不擋)</span>
+SessionStart       → session-start-register.sh <span class="c"># 登記 + 提醒</span></pre>
+</section>
+
+<!-- 9 SESSION REGISTRY -->
+<section class="slide">
+  <div class="eyebrow">script · session-registry.sh</div>
+  <h2>co-tenant 偵測 = <span class="accent">檔案式心跳</span></h2>
+  <div class="cols5545">
+    <pre><span class="c"># 每 session 一個檔,內容 = 它所在的 worktree 頂層</span>
+WT_REGISTRY="${WT_REGISTRY:-${TMPDIR:-/tmp}/claude-session-registry}"
+WT_TTL="${WT_TTL:-600}"   <span class="c"># 秒;安靜這麼久 = 死掉</span>
+
+<span class="b">sr_register</span>() {   <span class="c"># 刷新本 session 心跳</span>
+  local sid="$1" top="$2"; [ -n "$sid" ] || return 0
+  mkdir -p "$WT_REGISTRY"
+  printf '%s' "$top" &gt;"$WT_REGISTRY/$sid"
+}
+<span class="b">sr_cotenants</span>() {  <span class="c"># 數同一棵樹的其他 live session</span>
+  local sid="$1" top="$2" now n=0; now="$(date +%s)"
+  for f in "$WT_REGISTRY"/*; do
+    [ "$(basename "$f")" = "$sid" ] &amp;&amp; continue
+    age=$(( now - $(mtime "$f") ))
+    [ "$age" -gt "$WT_TTL" ] &amp;&amp; { rm -f "$f"; continue; } <span class="c"># 剪掉死的</span>
+    [ "$(cat "$f")" = "$top" ] &amp;&amp; n=$(( n + 1 ))
+  done
+  echo "$n"
+}</pre>
+    <div class="card">
+      <h3>為什麼這樣設計</h3>
+      <div class="t" style="margin-top:.35rem">
+        <b>無 daemon、無鎖伺服器</b> —— 只是 <code>$TMPDIR</code> 下的檔,mtime 當心跳。
+        <div class="divider"></div>
+        <b>自我修剪</b>:超過 TTL 的檔在數的時候順手刪。
+        <div class="divider"></div>
+        <b>心跳在最忙的 hook 刷新</b>(每次 Bash 呼叫)→ 免定時器就有好頻率。
+        <div class="divider"></div>
+        <b>key 是 session_id</b>(hook JSON 帶),<b>value 是 worktree 頂層</b> → 「co-tenant」= 同頂層的其他 session。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 WORKTREE GUARD -->
+<section class="slide">
+  <div class="eyebrow">script · worktree-guard.sh</div>
+  <h2>只擋<span class="accent">會互踩的操作</span>,且只在有 co-tenant 時</h2>
+  <div class="cols">
+    <pre><span class="c"># 讀 hook JSON</span>
+sid=$(jq -r '.session_id')  cmd=$(jq -r '.tool_input.command')
+top="$(git rev-parse --show-toplevel)"
+sr_register "$sid" "$top"   <span class="c"># 先刷心跳</span>
+
+[ "${WT_ALLOW_SHARED_TREE:-0}" = 1 ] &amp;&amp; exit 0  <span class="c"># 逃生門</span>
+
+<span class="b">is_dangerous</span>() {   <span class="c"># 一個 segment 內比對,忽略 `git log`</span>
+  <span class="c"># checkout/switch 但排除 `-- &lt;file&gt;` 還原</span>
+  grep -qE 'git[^;&amp;|]*(checkout|switch)' &amp;&amp; \
+    ! grep -qE 'git[^;&amp;|]* -- ' &amp;&amp; return 0
+  grep -qE 'git[^;&amp;|]*stash' &amp;&amp; return 0
+  grep -qE 'git[^;&amp;|]*reset[^;&amp;|]*--hard' &amp;&amp; return 0
+  return 1
+}
+is_dangerous || exit 0
+[ "$(sr_cotenants "$sid" "$top")" -ge 1 ] || exit 0  <span class="c"># 單人 → 放行</span>
+<span class="r">echo "🚫 BLOCKED: 共用樹切分支/stash" &gt;&amp;2; exit 2</span></pre>
+    <div class="card">
+      <h3>設計取捨(誠實)</h3>
+      <div class="t" style="margin-top:.35rem">
+        <b>只擋破壞性操作</b>:branch switch / stash / reset --hard;<code>git checkout -- file</code>(還原單檔)放行。
+        <div class="divider"></div>
+        <b>單人零成本</b>:<code>sr_cotenants ≥ 1</code> 才擋。
+        <div class="divider"></div>
+        <b>已知誤報</b>:regex 會誤中「字串裡提到 git checkout」(如 <code>echo "git checkout"</code>)。保守 = 安全;<code>WT_ALLOW_SHARED_TREE=1</code> 一次性繞過。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 GATE RUNNER -->
+<section class="slide">
+  <div class="eyebrow">script · gate-runner.sh</div>
+  <h2>可插拔的 commit gate — <span class="accent">runner 與規則分離</span></h2>
+  <div class="cols5545">
+    <pre><span class="c"># 由 .githooks/pre-commit 呼叫(git hook 沒接好時由 Claude fallback)</span>
+STAGED_FILES="$(git diff --cached --name-only \
+                 --diff-filter=ACMR)"
+export STAGED_FILES
+[ -n "$STAGED_FILES" ] || exit 0          <span class="c"># 空 stage → 過</span>
+[ -d "$GATES_DIR" ] || exit 0
+
+rc=0
+for gate in "$GATES_DIR"/*; do            <span class="c"># .dev/gates/* 依序</span>
+  [ -x "$gate" ] || continue
+  case "$gate" in *.sample|*.md) continue;; esac
+  <span class="c"># staged 檔清單餵 stdin;gate 非 0 = 擋</span>
+  printf '%s\n' "$STAGED_FILES" | "$gate" || {
+    echo "🚫 gate failed: $(basename "$gate")" &gt;&amp;2; rc=1; }
+done
+exit "$rc"</pre>
+    <div class="card">
+      <h3>合約(你的 gate 要遵守)</h3>
+      <div class="t" style="margin-top:.35rem">
+        ① staged 檔清單從 <b>stdin</b> 進(也在 <code>$STAGED_FILES</code>)。<br>
+        ② <b>exit 0 過、非 0 擋</b>,stderr 顯示。<br>
+        ③ 數字前綴排序:<code>10-lint.sh</code> → <code>40-arch.sh</code>。<br>
+        ④ <code>.sample</code>/<code>.md</code> 忽略(複製 sample → 改名 → <code>chmod +x</code>)。
+        <div class="divider"></div>
+        <b>runner 語言無關;規則是專案的。</b> harness 只負責接線與排序。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 PRETOOLUSE DISPATCHER + COMMIT GATE -->
+<section class="slide">
+  <div class="eyebrow">script · pretooluse-bash.sh + pre-commit</div>
+  <h2>commit gate 的<span class="accent">雙重保險</span></h2>
+  <div class="cols">
+    <div>
+      <pre><span class="c"># pretooluse-bash.sh — Claude PreToolUse(Bash) 派發器</span>
+is_git_commit &amp;&amp; {
+  hp="$(git config --get core.hooksPath)"
+  <span class="c"># git 的 pre-commit 已生效 → 交給它,避免雙跑</span>
+  [ "$hp" = ".githooks" ] &amp;&amp; exit 0
+  <span class="c"># 否則 fallback:現在就跑 gate,擋住</span>
+  gate-runner.sh || exit 2
+}
+is_git_push &amp;&amp; grep -q 'main' &amp;&amp; \
+  echo "⚠️ 直推 main — 建議走 PR" &gt;&amp;2   <span class="c"># 只警告</span></pre>
+    </div>
+    <div>
+      <p class="lead"><b>兩條路,同一個 gate:</b></p>
+      <ul>
+        <li><b>主要</b>:git <code>pre-commit</code> 對<em>所有</em> commit 生效(人 + agent),前提是設了 <code>core.hooksPath=.githooks</code>。</li>
+        <li><b>fallback</b>:若沒設,Claude 的 Bash hook 偵測到 <code>git commit</code> 就代跑 gate 並 <code>exit 2</code> 擋下。</li>
+      </ul>
+      <div class="card" style="margin-top:.6rem">
+        <div class="t"><b>commit-scoped(參考專案版):</b>只在 commit <em>stage 了</em> <code>backend/src</code> 時跑重的靜態 gate(ruff/arch/spec-sync/mypy);純 docs commit 秒過,不被無關的分支漂移拖累。pytest/tsc 留給 CI(每 commit 跑太慢)。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 VALIDATE_ARCH -->
+<section class="slide">
+  <div class="eyebrow">script · validate_arch.py</div>
+  <h2>架構 lint = <span class="accent">AST 走訪 + 22 條規則</span></h2>
+  <div class="cols5545">
+    <div>
+      <p class="lead">解析每個 <code>.py</code> 成 AST,依它在哪一層(<code>domain/application/…</code>)套用該層的規則。一個純函式清單 <code>ALL_CHECKS</code>,每條回傳 violations。</p>
+      <pre><span class="c"># 例:層級 import 規則(資料驅動)</span>
+DOMAIN_FORBIDDEN_EXTERNAL = {sqlalchemy, fastapi,
+  pydantic, arq, redis, alembic}
+INTERNAL_FORBIDDEN = {
+  "domain": {f"{PKG}.application",
+             f"{PKG}.infrastructure",
+             f"{PKG}.interfaces"}, ... }
+<span class="c"># domain import 到框架或別層 → violation</span></pre>
+      <p class="lead" style="margin-top:.5rem"><b>可攜:</b>只 <code>PKG = os.environ.get("CCK_PKG","mywb")</code> 參數化;規則本身就是你要的 DDD 紀律。</p>
+    </div>
+    <div class="card">
+      <h3>22 條(部分)</h3>
+      <div class="t" style="margin-top:.3rem;font-family:var(--mono);font-size:.72rem;line-height:1.7">
+        check_imports · check_money_typing ·
+        check_decimal_money_from_float ·
+        check_repo_protocol_location ·
+        check_orm_row_location ·
+        check_pydantic_location ·
+        check_event_shape · check_event_has_aggregate_id ·
+        check_aggregate_not_dataclass ·
+        check_uc_shape · check_uc_commits ·
+        check_handler_signature · <b>check_http_router</b> ·
+        check_datetime_tz · check_pytest_skip ·
+        check_test_no_session_import · …
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 TEST DRIFT -->
+<section class="slide">
+  <div class="eyebrow">script · check_test_drift.py</div>
+  <h2>source → test 的<span class="accent">對應演算法</span></h2>
+  <div class="cols">
+    <div>
+      <p class="lead">被 <code>_WATCHED</code> 命中的變更 source,同 diff 裡必須有對應 test 變更 —— 除非它也命中 <code>_EXEMPT</code>。三種「有對應」的判定:</p>
+      <table style="margin-top:.4rem">
+        <tr><th>方式</th><th>判定</th></tr>
+        <tr><td><b>STEM</b></td><td><code>add_holding.py</code> ↔ <code>test_add_holding.py</code>(stem 互為子字串)</td></tr>
+        <tr><td><b>FUZZ</b></td><td>router → API fuzz 覆蓋(整組算一個測試面)</td></tr>
+        <tr><td><b>GROUP</b></td><td>同 bounded-context 下任一測試改了</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>scoping(細節但重要)</h3>
+      <div class="t" style="margin-top:.35rem">
+        <code>--base main</code> 時只看 <b>committed range + staged</b> —— 未 stage 的編輯、未追蹤檔(常是別的並行 session 的 WIP)排除掉,才不會被別人的漂移擋住。
+        <div class="divider"></div>
+        <b>預設 advisory,<code>--strict</code> 才擋</b>(commit gate + pre-push + CI 用 strict)。
+        <div class="divider"></div>
+        <code>_EXEMPT</code> = 純重構/plumbing/migration/constants;要豁免就在 commit 明說。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 SETTINGS.JSON -->
+<section class="slide">
+  <div class="eyebrow">.claude/settings.json · 接線</div>
+  <h2>hook 怎麼<span class="accent">綁到工具事件</span></h2>
+  <div class="cols5545">
+    <pre>{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": <span class="b">"Bash"</span>, "hooks": [
+        { "type":"command",
+          "command":"bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pretooluse-bash.sh\"",
+          "timeout":200 },
+        { "type":"command",
+          "command":"bash \"…/worktree-guard.sh\"",
+          "timeout":15 } ] },
+      { "matcher": <span class="b">"Edit|Write|MultiEdit"</span>, "hooks": [
+        { "command":"bash \"…/worktree-guard-edit.sh\"" } ] }
+    ],
+    "SessionStart": [
+      { "hooks":[{ "command":"bash \"…/session-start-register.sh\"" }] }
+    ]
+  }
+}</pre>
+    <div class="card">
+      <h3>要點</h3>
+      <div class="t" style="margin-top:.35rem">
+        <b>matcher</b> 用工具名(<code>Bash</code>、<code>Edit|Write|MultiEdit</code>)決定哪個工具觸發。
+        <div class="divider"></div>
+        同一 matcher 下多個 hook <b>依序執行</b> → 可堆疊(commit gate 後接 worktree guard)。
+        <div class="divider"></div>
+        <code>${CLAUDE_PROJECT_DIR}</code> 讓路徑與 clone 位置無關。
+        <div class="divider"></div>
+        <b>安裝時是 additive merge</b>:既有的 hook 不覆蓋,只 append 進陣列。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 LAUNCHER -->
+<section class="slide">
+  <div class="eyebrow">script · claude-worktree.sh</div>
+  <h2>per-session worktree <span class="accent">launcher</span></h2>
+  <div class="cols">
+    <pre><span class="c"># 用 `cw [slug]` 取代 `claude`</span>
+REPO="${WT_REPO:-$(git -C "$_here" rev-parse --show-toplevel)}"
+WT="${WT_ROOT}/${SLUG}-$(date +%Y%m%d-%H%M%S)-$$"
+BRANCH="wt/${SLUG}-…-$$"
+
+git -C "$REPO" worktree add "$WT" -b "$BRANCH"  <span class="c"># 全新樹</span>
+( cd "$WT" &amp;&amp; claude "${@:2}" ); rc=$?
+
+<span class="c"># 退出時:乾淨(無未提交、無未推)才自動移除</span>
+dirty="$(git -C "$WT" status --porcelain)"
+unpushed="$(git -C "$WT" log --branches --not --remotes)"
+if [ -z "$dirty" ] &amp;&amp; [ -z "$unpushed" ]; then
+  git -C "$REPO" worktree remove "$WT" --force
+  git -C "$REPO" branch -D "$BRANCH"
+else
+  <span class="r">echo "▸ KEPT(有未提交/未推): $WT" &gt;&amp;2</span>
+fi</pre>
+    <div class="card">
+      <h3>安全設計</h3>
+      <div class="t" style="margin-top:.35rem">
+        <b>隔離 by construction</b>:每 session 一棵樹,天生不互踩 —— guard hook 只是安全網。
+        <div class="divider"></div>
+        <b>絕不默默丟工作</b>:退出時<em>只有</em>乾淨(無未提交 + 無未推)才移除;否則保留並印路徑。
+        <div class="divider"></div>
+        <b>從主樹當下 HEAD 分岔</b> → 主樹保持在最新 main 最理想。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 CI CHECKS -->
+<section class="slide">
+  <div class="eyebrow">CI · checks.yml</div>
+  <h2>checks workflow 的<span class="accent">實作選擇</span></h2>
+  <div class="cols">
+    <pre>name: <b>checks</b>
+on:
+  pull_request:
+  push: { branches: [main], <span class="s">paths-ignore</span>: ['deploy/**'] }
+  workflow_dispatch:
+jobs:
+  <b>backend</b>:
+    runs-on: [self-hosted, Linux, ARM64]
+    container: { image: python:3.13-bookworm }
+    steps:
+      - run: |
+          git clone … src &amp;&amp; cd src/backend
+          uv sync
+          uv run ruff check .
+          uv run mypy
+          uv run python scripts/<b>validate_arch.py</b>
+          uv run python scripts/<b>check_spec_sync.py</b>
+          uv run python scripts/<b>check_test_drift.py</b> --strict
+          uv run pytest -q   <span class="c"># 記憶體 sqlite,無 sidecar</span></pre>
+    <div class="card">
+      <h3>為什麼這樣</h3>
+      <div class="t" style="margin-top:.35rem">
+        <b>self-clone</b>:job 自己 <code>git clone</code>(self-hosted runner 復用 workdir),再進語言 container。
+        <div class="divider"></div>
+        <b>測試無外部服務</b>:unit + integration 都用 <code>sqlite+aiosqlite:///:memory:</code>,免 Postgres/Redis sidecar → 快、穩。
+        <div class="divider"></div>
+        <b>push 上 <code>paths-ignore: deploy/**</code></b>:Flux 的 gitops bump commit 不重跑全套(也不觸發下游部署 gate)。PR 不過濾,讓每個 check 都回報狀態。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 18 DEPLOY GATE YAML -->
+<section class="slide">
+  <div class="eyebrow">CI · 部署 gate 的 YAML</div>
+  <h2>image build <span class="accent">接在 checks 之後</span>的實作</h2>
+  <div class="cols5545">
+    <pre><span class="c"># backend-image.yml — 不再 on: push</span>
+on:
+  <b>workflow_run</b>:
+    workflows: ["checks"]
+    types: [completed]
+    branches: [main]    <span class="c"># PR 的 checks(非 main head)排除</span>
+  workflow_dispatch:    <span class="c"># 保留手動逃生門</span>
+jobs:
+  build-push:
+    if: &gt;
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.<b>conclusion == 'success'</b>
+    env:
+      TRIGGER_SHA: ${{ github.event.workflow_run.<b>head_sha</b> }}
+    steps:
+      - run: |
+          SHA="${TRIGGER_SHA:-$GITHUB_SHA}"
+          git checkout "$SHA"       <span class="c"># checks 通過的那個 commit</span>
+          <span class="c"># workflow_run 無 paths: → job 內自己過濾</span>
+          git diff --name-only "${SHA}^" "$SHA" \
+            | grep -qE '^backend/' || { echo skip; exit 0; }</pre>
+    <div class="card">
+      <h3>三個非顯而易見的細節</h3>
+      <div class="t" style="margin-top:.35rem">
+        ① 用 <code>workflow_run.head_sha</code> checkout —— 否則會拿到 default branch head,不是 gate 通過的 commit。
+        <div class="divider"></div>
+        ② <code>workflow_run</code> 沒有 <code>paths:</code> → 在 job 內用 <code>git diff SHA^ SHA</code> 重建 path 過濾。
+        <div class="divider"></div>
+        ③ <b>首次生效在 merge 後</b>:workflow_run 永遠用 default branch 的 workflow 檔。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 ADD YOUR GATE -->
+<section class="slide">
+  <div class="eyebrow">實作 · 加你自己的 gate</div>
+  <h2>寫一個 gate:<span class="accent">十行以內</span></h2>
+  <div class="cols">
+    <pre><span class="c"># .dev/gates/20-eslint.sh  (chmod +x)</span>
+#!/usr/bin/env bash
+set -uo pipefail
+staged="$(cat)"          <span class="c"># stdin = staged 檔清單</span>
+js="$(printf '%s\n' "$staged" | grep -E '\.(ts|tsx)$')"
+[ -n "$js" ] || exit 0   <span class="c"># 沒動到 → 過</span>
+node_modules/.bin/eslint $js   <span class="c"># 非 0 = 擋 commit</span></pre>
+    <div>
+      <p class="lead">gate 就是一支讀 stdin、用 exit code 表態的可執行檔。要加什麼檢查,就寫一支丟進 <code>.dev/gates/</code>。</p>
+      <ul style="margin-top:.5rem">
+        <li><b>只查 staged 的相關檔</b> → 快;不相干的 commit 秒過。</li>
+        <li><b>命名排序</b> 決定執行順序。</li>
+        <li>重的檢查放 <code>.dev/gates/push/</code>(pre-push 跑)或 CI。</li>
+        <li>驗證方式:<b>故意違規 → 應擋;修好 → 應過。</b></li>
+      </ul>
+      <p class="lead" style="margin-top:.5rem">Python/DDD 專案可直接 <code>--profile python-ddd</code> 拿到 ruff/mypy/arch/spec-sync/test-drift 六支現成 gate。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 20 PRINCIPLES -->
+<section class="slide">
+  <div class="eyebrow">貫穿所有 script 的設計原則</div>
+  <h2>為什麼每支都這樣寫</h2>
+  <ul class="two-list" style="font-size:.95rem;margin-top:.4rem">
+    <li><b>idempotent</b> —— installer 跳過既有檔;gate 可重跑;心跳可覆寫。</li>
+    <li><b>fail-loud</b> —— adapter 缺依賴就在啟動時炸;不默默 fallback 到 stub。</li>
+    <li><b>非破壞</b> —— 不覆蓋既有 <code>settings.json</code>/<code>CLAUDE.md</code>;guard 不擋單人。</li>
+    <li><b>staged-scoped</b> —— gate 只看這次 commit 的檔,不被無關漂移拖累。</li>
+    <li><b>exit code 是介面</b> —— 0 過 / 2 擋 / stderr 回饋;語言無關。</li>
+    <li><b>env 參數化,不改邏輯</b> —— <code>CCK_PKG</code> / <code>WT_*</code> 讓通用腳本適配專案。</li>
+    <li><b>逃生門明示</b> —— <code>WT_ALLOW_SHARED_TREE=1</code> / <code>--no-verify</code> / <code>workflow_dispatch</code>。</li>
+    <li><b>可攜 vs 專屬分離</b> —— runner/wiring 通用,規則放 <code>.dev/gates/</code> 由專案填。</li>
+  </ul>
+</section>
+
+<!-- 21 WHERE -->
+<section class="slide">
+  <div class="eyebrow">速查 · 每個檔在哪</div>
+  <h2>檔案地圖</h2>
+  <div class="cols">
+    <pre>repo/
+├── <b>CLAUDE.md</b>                    <span class="c"># 操作手冊 + ADR 索引</span>
+├── .dev/
+│   ├── adr/ADR-NNN-*.md         <span class="c"># 決策</span>
+│   ├── specs/&lt;ctx&gt;/&lt;agg&gt;/
+│   │   ├── entity/*-spec.md      <span class="c"># 結構</span>
+│   │   └── usecase/*.yaml        <span class="c"># 行為</span>
+│   ├── lessons/*.md              <span class="c"># 血淚</span>
+│   ├── tasks/                    <span class="c"># task ledger</span>
+│   └── gates/                    <span class="c"># 你的 commit gate</span>
+│       └── push/                 <span class="c"># pre-push gate</span></pre>
+    <pre>├── .githooks/{pre-commit,pre-push}
+├── .claude/
+│   ├── settings.json            <span class="c"># hook 接線</span>
+│   └── hooks/
+│       ├── session-registry.sh
+│       ├── worktree-guard*.sh
+│       ├── gate-runner.sh
+│       └── pretooluse-bash.sh
+├── scripts/                     <span class="c"># validate_arch / test_drift / …</span>
+│   └── claude-worktree.sh       <span class="c"># launcher</span>
+└── .github/workflows/
+    ├── checks.yml               <span class="c"># 品質 gate</span>
+    └── *-image.yml              <span class="c"># workflow_run 部署 gate</span></pre>
+  </div>
+</section>
+
+<!-- 22 CLOSING -->
+<section class="slide">
+  <div class="title-wrap">
+    <div class="eyebrow">收尾</div>
+    <h2 style="font-size:clamp(1.7rem,3.8vw,2.9rem);max-width:26ch">每支 script 都短、單一職責、用 <span class="accent">exit code 說話</span> —— 所以容易讀、容易改、容易套。</h2>
+    <div class="divider" style="margin:1.6rem 0"></div>
+    <div class="cols3">
+      <div class="card"><h3>全部原始碼</h3><div class="t"><code>claude-control-kit</code> repo —— kit/、profiles/python-ddd/、install.sh。</div></div>
+      <div class="card"><h3>怎麼裝</h3><div class="t"><code>bash install.sh [--profile python-ddd]</code>;或 <code>/scaffold-controls</code> skill。</div></div>
+      <div class="card"><h3>上一份</h3><div class="t">「工程實務手冊」= 為什麼 &amp; 全貌;本篇 = 怎麼實作。</div></div>
+    </div>
+    <p class="lead" style="margin-top:1.4rem">要改一條規則?找對應那支 20 行的 gate。要加一種紀律?寫一支新 gate 丟進 <code>.dev/gates/</code>。就這樣長大。</p>
+  </div>
+</section>
+
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="hint">← → · 空白 · <kbd>f</kbd> 全螢幕</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let i=0;
+  const foot=(n)=>`<span>實作細節篇 · CLAUDE.md / ADR / spec / hooks / gate scripts</span><span><span class="brand">${String(n+1).padStart(2,'0')}</span> / ${slides.length}</span>`;
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    document.getElementById('progress').style.width=((i+1)/slides.length*100)+'%';
+    let f=slides[i].querySelector('.foot');
+    if(!f){f=document.createElement('div');f.className='foot';slides[i].appendChild(f);}
+    f.innerHTML=foot(i);
+    location.hash=i+1;
+  }
+  function go(d){show(i+d);}
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(-1);}
+    else if(e.key==='Home'){show(0);} else if(e.key==='End'){show(slides.length-1);}
+    else if(e.key==='f'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+  });
+  document.getElementById('deck').addEventListener('click',e=>{
+    if(e.target.closest('a,code,pre,table'))return;
+    go(e.clientX < window.innerWidth*0.28 ? -1 : 1);
+  });
+  const h=parseInt(location.hash.slice(1)); show(Number.isFinite(h)&&h>0?h-1:0);
+</script>
+</body>
+</html>
