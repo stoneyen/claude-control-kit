@@ -77,3 +77,12 @@ of the box. Project-specific checks are **not** shipped — they live in
 what you enforce is yours.
 
 Prereqs on the machine: `bash`, `git`, `jq`.
+
+## Slides: the engineering playbook
+
+[`docs/mywb-engineering-playbook.html`](docs/mywb-engineering-playbook.html) — a
+self-contained slide deck explaining the governance model behind this kit
+(sources of truth, CLAUDE.md, the enforcement harness, spec-first, CI/CD deploy
+gate, worktree isolation) so a team can understand *why* and apply it to their
+own projects. Open in a browser; arrow keys / space to navigate, `f` for
+fullscreen.

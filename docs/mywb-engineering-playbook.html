@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Governing AI-assisted development — the MyWB engineering playbook</title>
+<style>
+  :root{
+    --bg:#0b0a08; --panel:#151310; --panel2:#1c1915; --ink:#efe9dd; --muted:#a89f8d;
+    --brass:#c9a24a; --brass-soft:#e6c877; --sage:#5e9e7e; --oxblood:#c26a5c; --slate:#7e93c8;
+    --line:#2a251d; --code:#12100c;
+    --serif:"Newsreader","Iowan Old Style",Georgia,"Times New Roman",serif;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--ui);
+    font-feature-settings:"tnum";-webkit-font-smoothing:antialiased;overflow:hidden}
+  .deck{height:100vh;width:100vw;position:relative}
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;
+    padding:5.2vh 7vw 8vh;opacity:0;transition:opacity .28s ease;overflow:auto}
+  .slide.active{display:flex;opacity:1}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:.2px;margin:0}
+  .eyebrow{font-family:var(--ui);text-transform:uppercase;letter-spacing:.22em;font-size:.72rem;
+    color:var(--brass);font-weight:700;margin-bottom:1.2rem}
+  h2{font-size:clamp(1.7rem,3.6vw,2.9rem);line-height:1.08;color:#fff;margin-bottom:.4rem}
+  .sub{color:var(--muted);font-size:clamp(1rem,1.5vw,1.18rem);max-width:60ch;margin-bottom:2rem;line-height:1.5}
+  p{line-height:1.55}
+  ul{margin:.2rem 0;padding-left:1.15rem}
+  li{margin:.5rem 0;line-height:1.5;color:var(--ink)}
+  li b, p b{color:#fff}
+  .accent{color:var(--brass-soft)}
+  code,kbd{font-family:var(--mono);background:var(--code);border:1px solid var(--line);
+    border-radius:5px;padding:.08em .4em;font-size:.88em;color:var(--brass-soft)}
+  pre{font-family:var(--mono);background:var(--code);border:1px solid var(--line);border-radius:10px;
+    padding:1rem 1.2rem;overflow:auto;font-size:.82rem;line-height:1.55;color:#d8d0bd;margin:.6rem 0}
+  pre .c{color:#7d7666}    /* comment */
+  pre .k{color:var(--sage)} /* keyword/good */
+  pre .r{color:var(--oxblood)} /* bad/block */
+  pre .b{color:var(--brass-soft)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem}
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.3rem}
+  .card h3{font-size:1.12rem;color:#fff;margin-bottom:.35rem}
+  .card .t{font-size:.83rem;color:var(--muted);line-height:1.45}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;padding:.12em .55em;border-radius:6px;
+    border:1px solid var(--line);color:var(--brass-soft);background:#000;margin-right:.3rem}
+  table{border-collapse:collapse;width:100%;font-size:.86rem;margin-top:.4rem}
+  th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--brass);text-transform:uppercase;letter-spacing:.1em;font-size:.68rem;font-weight:700}
+  td b{color:#fff}
+  .muted{color:var(--muted)}
+  .big-quote{font-family:var(--serif);font-size:clamp(1.5rem,3.4vw,2.6rem);line-height:1.25;color:#fff;max-width:22ch}
+  .stat-row{display:flex;gap:2.4rem;flex-wrap:wrap;margin-top:2.2rem}
+  .stat .n{font-family:var(--serif);font-size:2.5rem;color:var(--brass-soft);line-height:1}
+  .stat .l{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-top:.3rem}
+  .flow{display:flex;align-items:stretch;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
+  .flow .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;
+    font-size:.82rem;flex:1;min-width:120px}
+  .flow .step .s{color:var(--brass);font-family:var(--mono);font-size:.68rem;display:block;margin-bottom:.25rem}
+  .arrow{color:var(--brass);align-self:center;font-size:1.1rem}
+  .gate{border-left:3px solid var(--oxblood);padding-left:.9rem}
+  .ok{border-left:3px solid var(--sage);padding-left:.9rem}
+  .pill{display:inline-block;padding:.15em .6em;border-radius:999px;font-size:.72rem;font-weight:700}
+  .pill.block{background:rgba(194,106,92,.18);color:var(--oxblood);border:1px solid rgba(194,106,92,.4)}
+  .pill.warn{background:rgba(201,162,74,.16);color:var(--brass-soft);border:1px solid rgba(201,162,74,.4)}
+  .pill.auto{background:rgba(94,158,126,.16);color:var(--sage);border:1px solid rgba(94,158,126,.4)}
+  .foot{position:absolute;left:7vw;right:7vw;bottom:2.6vh;display:flex;justify-content:space-between;
+    align-items:center;font-size:.72rem;color:#6b6456;font-family:var(--mono)}
+  .foot .brand{color:var(--brass)}
+  .progress{position:absolute;left:0;bottom:0;height:3px;background:var(--brass);transition:width .28s ease;z-index:5}
+  .hint{position:absolute;right:2vw;bottom:1vh;font-size:.66rem;color:#4a453b;font-family:var(--mono)}
+  .lead{font-size:1.05rem;color:var(--ink);max-width:66ch;line-height:1.6}
+  .two-list{columns:2;column-gap:2.4rem}
+  .two-list li{break-inside:avoid}
+  .title-wrap{margin:auto 0}
+  .kbd-nav kbd{margin:0 .1em}
+  .divider{height:1px;background:var(--line);margin:1.2rem 0}
+  .small{font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide active">
+  <div class="title-wrap">
+    <div class="eyebrow">Engineering playbook · reference: MyWB / Warren</div>
+    <h1 style="font-size:clamp(2.4rem,6vw,4.4rem);line-height:1.02;color:#fff;max-width:20ch">
+      Governing<span class="accent"> AI-assisted</span> development</h1>
+    <p class="sub" style="margin-top:1.4rem;font-size:1.15rem">
+      How one project keeps <b>humans and coding agents</b> honest over time — and the reusable
+      harness that lets you apply the same discipline to <b>your own project</b>.</p>
+    <div class="stat-row">
+      <div class="stat"><div class="n">75</div><div class="l">ADRs</div></div>
+      <div class="stat"><div class="n">22</div><div class="l">arch rules</div></div>
+      <div class="stat"><div class="n">2,700+</div><div class="l">backend tests</div></div>
+      <div class="stat"><div class="n">34</div><div class="l">lessons</div></div>
+      <div class="stat"><div class="n">4+1</div><div class="l">gate layers</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 WHY -->
+<section class="slide">
+  <div class="eyebrow">The problem</div>
+  <h2>AI writes code fast. Keeping a <span class="accent">system coherent</span> is the hard part.</h2>
+  <p class="sub">Speed of generation exposes the real bottleneck: staying consistent across time, many hands, and now many <em>agents</em>. These are the failure modes we kept hitting:</p>
+  <div class="cols3">
+    <div class="card"><h3>Spec drift</h3><div class="t">Code changes; the design doc silently falls behind. The next reader trusts a lie.</div></div>
+    <div class="card"><h3>Test drift</h3><div class="t">Behaviour changes; its test is left stale. The suite stays green but no longer describes the code.</div></div>
+    <div class="card"><h3>Green CI ≠ safe deploy</h3><div class="t">Image builds raced the test gate — a red gate still shipped broken code to prod.</div></div>
+    <div class="card"><h3>Concurrent stomp</h3><div class="t">Two agent sessions share one working tree; one <code>git checkout</code> rips the other's uncommitted work out.</div></div>
+    <div class="card"><h3>Undocumented decisions</h3><div class="t">"Why is it built this way?" gets re-litigated or accidentally broken every few weeks.</div></div>
+    <div class="card"><h3>Lost lessons</h3><div class="t">The same non-obvious bug is rediscovered from scratch — the 10-minute fix costs a day again.</div></div>
+  </div>
+  <p class="lead" style="margin-top:1.4rem">Every rule in this playbook exists because one of these <b>actually bit us</b>. None are aspirational.</p>
+</section>
+
+<!-- 3 THESIS -->
+<section class="slide">
+  <div class="eyebrow">The thesis</div>
+  <h2>Four moves that make agent-driven dev <span class="accent">durable</span></h2>
+  <div class="cols" style="margin-top:1rem">
+    <div class="card"><span class="tag">1</span><h3 style="display:inline">Sources of truth live in the repo</h3>
+      <div class="t" style="margin-top:.5rem">Decisions, behaviour, hard-won ops knowledge, and work state — versioned next to the code, not in a wiki that rots. (<code>.dev/</code>)</div></div>
+    <div class="card"><span class="tag">2</span><h3 style="display:inline">An operating manual for the agent</h3>
+      <div class="t" style="margin-top:.5rem">A single <code>CLAUDE.md</code> of instructions the agent must follow — conventions, the decision index, the spec-first rule. Not docs; <em>instructions</em>.</div></div>
+    <div class="card"><span class="tag">3</span><h3 style="display:inline">A harness that enforces it — left of CI</h3>
+      <div class="t" style="margin-top:.5rem">Hooks + git gates that <b>block</b> at the earliest boundary (edit → commit → push), so the same discipline CI checks is caught before you even push.</div></div>
+    <div class="card"><span class="tag">4</span><h3 style="display:inline">Isolate concurrency</h3>
+      <div class="t" style="margin-top:.5rem">One git worktree per session so parallel humans/agents can never corrupt each other's branch or uncommitted state.</div></div>
+  </div>
+  <p class="lead" style="margin-top:1.5rem">The rest of this deck is these four, concretely — then <b>how to install them</b> in your project.</p>
+</section>
+
+<!-- 4 .dev -->
+<section class="slide">
+  <div class="eyebrow">Move 1 · Sources of truth</div>
+  <h2>The <span class="accent">.dev/</span> directories</h2>
+  <p class="sub">Four kinds of durable knowledge, each a directory. "Always check these before making changes or answering design questions."</p>
+  <table>
+    <tr><th>Dir</th><th>Holds</th><th>The discipline</th></tr>
+    <tr><td><b>.dev/adr/</b></td><td>Architecture Decision Records — one file per decision (Context · Decision · Consequences · Alternatives).</td><td>Before an architectural change, grep here. Contradict one? Align, or write a new ADR that <b>supersedes</b> it. Never silently violate.</td></tr>
+    <tr><td><b>.dev/specs/</b></td><td>Per-aggregate behavioural specs: entity spec + one YAML per use case (invariants, pre/postconditions, events, tests).</td><td>Reviewed with the human <b>before</b> code. Spec-first.</td></tr>
+    <tr><td><b>.dev/lessons/</b></td><td>Learned-the-hard-way fixes, named by <em>symptom</em>.</td><td>Grep before debugging a non-obvious bug; write one after fixing it.</td></tr>
+    <tr><td><b>.dev/tasks/</b></td><td>File-backed task ledger for multi-step work — survives session boundaries + crashes.</td><td>"Where did we leave off?" across sessions.</td></tr>
+  </table>
+  <p class="lead" style="margin-top:1.3rem">A wiki is off to the side and unversioned. These sit <b>next to the code</b> and travel with every clone and PR.</p>
+</section>
+
+<!-- 5 ADR -->
+<section class="slide">
+  <div class="eyebrow">Sources of truth · decisions</div>
+  <h2>ADRs — decisions that <span class="accent">survive turnover</span></h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>One file per decision</b>, numbered: <code>ADR-065-checks-gate-blocks-deploy.md</code>.</li>
+        <li>Fixed shape: <b>Context</b> (the forces) · <b>Decision</b> · <b>Consequences</b> · <b>Alternatives Considered</b> · <b>Related</b>.</li>
+        <li><b>Supersede, don't delete.</b> A new decision writes a new ADR that names the one it replaces — the reasoning chain stays intact.</li>
+        <li>An <b>index table in CLAUDE.md</b> gives the agent a one-line summary of every decision to grep. <span class="muted">(75 and counting.)</span></li>
+      </ul>
+      <p class="lead" style="margin-top:.8rem">The payoff: "why is it like this?" is answerable in seconds, and a change that would break a decision is caught before it ships.</p>
+    </div>
+    <pre><span class="c"># ADR-065 — The checks gate blocks deployment</span>
+- Date: 2026-07-05
+- Status: <span class="k">Accepted</span>
+
+## Context
+Image builds raced `checks` on push to main,
+so a red gate still shipped. Branch protection
+returns 403 on this repo plan.
+
+## Decision
+Deploy-producing workflows trigger on
+<span class="b">workflow_run</span> of `checks` succeeding — not push.
+
+## Consequences
+Red checks → no image → no deploy.
+Deploy latency +one checks run.
+
+## Alternatives Considered
+- Branch protection (403 on plan) — rejected.
+- Parallel + post-hoc rollback — reactive.</pre>
+  </div>
+</section>
+
+<!-- 6 SPECS -->
+<section class="slide">
+  <div class="eyebrow">Sources of truth · behaviour</div>
+  <h2>Spec-driven development</h2>
+  <p class="sub">The design of a change is written and reviewed <b>before</b> the code. A machine keeps the spec and the code from drifting apart.</p>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Spec-first rule:</b> before editing a domain aggregate, use case, or HTTP route, update its spec first — and it's a <em>hard gate</em>: a new aggregate/UC with no spec directory blocks the commit.</li>
+        <li><b>Two artefacts:</b> an entity spec (structure, invariants, state machine) + one YAML per use case (input, pre/postconditions, events, test scenarios).</li>
+        <li><b>check_spec_sync</b> asserts the entity spec and the use-case YAML stay in agreement — a renamed field in code with a stale spec fails the gate.</li>
+        <li>A guided flow (<code>/execute-uc</code>) generates the skeleton from the reviewed spec, then runs the four gates.</li>
+      </ul>
+    </div>
+    <div class="card ok">
+      <h3>Why this beats "write code, doc later"</h3>
+      <div class="t" style="margin-top:.4rem">
+        The spec is the contract the human approves. The agent implements <em>to the spec</em>, not to a vibe. And because a checker binds spec↔code, the doc can't quietly become fiction — the failure mode that makes most docs untrustworthy.
+      </div>
+      <div class="divider"></div>
+      <div class="t"><b>Trigger, verbatim from CLAUDE.md:</b> <span class="muted">"If you are about to edit ANY file under <code>domain/</code>, <code>application/</code>, or <code>routers/</code> — stop. Check whether the matching spec exists. If not, write the spec FIRST."</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 LESSONS -->
+<section class="slide">
+  <div class="eyebrow">Sources of truth · ops knowledge</div>
+  <h2>Lessons — stop <span class="accent">re-discovering</span> the same rake</h2>
+  <p class="sub">One markdown file per non-obvious bug, named for the <em>symptom</em> so the next person greps and finds it. The cost is ~10 minutes; the saving is the next person not losing a day.</p>
+  <div class="cols3">
+    <div class="card"><h3 class="small">tilt-live-update-silently-fails</h3><div class="t"><code>tilt trigger</code> reports success, pod is Running, but the code in the pod is OLD.</div></div>
+    <div class="card"><h3 class="small">ci-green-but-deploy-ships-broken</h3><div class="t">Image built + deployed despite a red gate — workflows raced.</div></div>
+    <div class="card"><h3 class="small">runner-drops-builder-label-on-restart</h3><div class="t">A docker restart re-registers the runner with a stale env → image jobs queue forever.</div></div>
+  </div>
+  <p class="lead" style="margin-top:1.2rem">Shape: <b>When this bites · Symptoms · Root cause · Fix · How to detect early · Related.</b>
+    The rule is cultural, made routine: <b>after fixing a non-obvious bug, write the lesson and link it from the commit.</b></p>
+</section>
+
+<!-- 8 CLAUDE.md -->
+<section class="slide">
+  <div class="eyebrow">Move 2 · The operating manual</div>
+  <h2>CLAUDE.md is <span class="accent">instructions</span>, not documentation</h2>
+  <div class="cols">
+    <div>
+      <p class="lead">It's the file the agent reads first and is told to obey. It doesn't <em>describe</em> the system — it tells the agent <b>how to behave</b> in it.</p>
+      <ul style="margin-top:1rem">
+        <li><b>The ADR index</b> — one grep-able line per decision.</li>
+        <li><b>Non-negotiables</b> — layering rules, "money is a Decimal, never float", "routers register at <code>/api/&lt;resource&gt;</code>".</li>
+        <li><b>The spec-first trigger</b> — a hard, explicit stop.</li>
+        <li><b>The enforcement-hook table</b> — what blocks where.</li>
+        <li><b>Session habits</b> — "every polling loop gets a timeout", "never save the same aggregate twice".</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The test it must pass</h3>
+      <div class="t" style="margin-top:.4rem">Every line answers: <em>"what should the agent DO or NOT do here?"</em> If a line is just describing structure the code already shows, it's noise — cut it.</div>
+      <div class="divider"></div>
+      <h3>Kept honest by the same harness</h3>
+      <div class="t" style="margin-top:.4rem">CLAUDE.md itself is a strict-review trigger. When it drifts from reality (as it did after 5 days of parallel work), the docs-sync is a first-class task — <em>we're literally doing that in this session's history.</em></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ARCH -->
+<section class="slide">
+  <div class="eyebrow">A worked example · architecture as a gate</div>
+  <h2>Clean Architecture + DDD, <span class="accent">machine-enforced</span></h2>
+  <div class="cols">
+    <div>
+      <pre><span class="c"># src/&lt;pkg&gt;/  — dependencies point inward only</span>
+<span class="k">domain/</span>          pure Python: entities, value
+                objects, repo <span class="b">ports</span>, events
+                <span class="r">✗ no sqlalchemy/fastapi/pydantic</span>
+<span class="k">application/</span>     thin use cases (orchestrate)
+<span class="k">infrastructure/</span>  ORM + repo impls, adapters
+<span class="k">interfaces/</span>      FastAPI routers, DTOs</pre>
+      <p class="lead" style="margin-top:.6rem">Rules like "domain imports no framework", "money is always <code>Decimal</code>", "DTOs at the boundary" aren't just review lore — a linter enforces <b>22 of them</b> on every commit that touches source.</p>
+    </div>
+    <div>
+      <pre><span class="c"># .dev/gates/40-arch.sh  →  validate_arch.py</span>
+<span class="r">✗ domain/thing.py imports `sqlalchemy`</span>
+  (forbidden in this layer)
+<span class="r">✗ float used for a money field</span>
+<span class="r">✗ router not registered at /api/…</span>
+
+<span class="k">✅ Gate 2.5 PASS — 0 violations
+   (22 rules enforced)</span></pre>
+      <div class="card" style="margin-top:1rem">
+        <div class="t"><b>Portability note:</b> the rules ARE the architecture — the linter is parameterized only on the package name. A "like-this" project adopts the same 22 rules by pointing <code>CCK_PKG</code> at its own package.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 HARNESS -->
+<section class="slide">
+  <div class="eyebrow">Move 3 · The enforcement harness</div>
+  <h2>Shift the gate <span class="accent">left</span> — block at the earliest boundary</h2>
+  <p class="sub">CI blocks at the PR boundary. These hooks catch the same problems <em>before</em> you even push — cheap → costly, each blocking at its own boundary.</p>
+  <table>
+    <tr><th>Where</th><th>Runs</th><th>Blocks?</th></tr>
+    <tr><td><b>every edit</b> · PostToolUse</td><td>lint the just-edited file</td><td><span class="pill warn">feedback</span> fix now</td></tr>
+    <tr><td><b>edit a domain/UC/router file</b> · PreToolUse</td><td>spec-first reminder</td><td><span class="pill warn">warn</span></td></tr>
+    <tr><td><b>git commit</b> · .githooks/pre-commit</td><td>test-drift · spec-existence · (on source) lint · arch · spec-sync · types</td><td><span class="pill block">YES — blocks</span></td></tr>
+    <tr><td><b>git push</b> · .githooks/pre-push</td><td>test-drift vs base branch</td><td><span class="pill block">YES</span> <span class="muted">(--no-verify escape)</span></td></tr>
+    <tr><td><b>shared-tree stomp</b> · PreToolUse</td><td>git checkout/switch/stash/reset --hard under a live co-tenant</td><td><span class="pill block">YES</span> <span class="muted">(solo unaffected)</span></td></tr>
+    <tr><td><b>PR</b> · CI checks workflow</td><td>full pytest · mypy · tsc -b · vitest</td><td><span class="pill block">YES (server-side)</span></td></tr>
+  </table>
+  <p class="lead" style="margin-top:1rem">Two implementations of the same discipline: <b>git hooks</b> catch humans <em>and</em> agents; <b>Claude Code hooks</b> add agent-specific guards + a fallback when git hooks aren't wired.</p>
+</section>
+
+<!-- 11 TEST DRIFT -->
+<section class="slide">
+  <div class="eyebrow">A gate worth calling out</div>
+  <h2>Test-drift: every behavioural change <span class="accent">carries a test</span></h2>
+  <div class="cols">
+    <div>
+      <p class="lead">A watched source file changing with <b>no corresponding test change</b> in the same diff blocks the commit. It maps each source file to its test — by stem, by fuzz coverage for routers, or by bounded-context group.</p>
+      <ul style="margin-top:1rem">
+        <li><b>Deliberately escapable:</b> pure refactors, plumbing, migrations, and constants are exempt — but you say so in the commit. The point is a <em>conscious decision per change</em>, never silent drift.</li>
+        <li>Runs at commit (staged) and at push (vs the base branch), and again in CI (commit-range-scoped).</li>
+      </ul>
+    </div>
+    <pre><span class="c"># pre-commit</span>
+== test-drift guard ==  base=main
+  <span class="k">✅ stem</span>  application/place_order.py
+  <span class="r">❌ none</span>  domain/order.py
+
+⚠️  1 source change with NO test change:
+    - domain/order.py
+
+<span class="r">🚫 commit blocked</span>
+Add a test, or declare it test-neutral
+in the commit message.</pre>
+  </div>
+</section>
+
+<!-- 12 WORKTREE -->
+<section class="slide">
+  <div class="eyebrow">Move 4 · Isolate concurrency</div>
+  <h2>One <span class="accent">git worktree</span> per session</h2>
+  <div class="cols">
+    <div>
+      <div class="card gate">
+        <h3>The war story</h3>
+        <div class="t" style="margin-top:.35rem">Two agent sessions shared one working tree. One ran <code>git checkout</code> to a different branch — and the other session's uncommitted work scattered across the wrong branch and into a stash. Recovery took a full worktree reconstruction.</div>
+      </div>
+      <p class="lead" style="margin-top:1rem">Fix, in layers: a <b>launcher</b> that starts every session in a fresh <code>git worktree</code> (auto-removed on exit if clean) — isolation by default. Plus a <b>guard hook</b> as the backstop.</p>
+    </div>
+    <div>
+      <pre><span class="c"># the guard fires ONLY under a live co-tenant</span>
+$ git checkout main
+<span class="r">🚫 BLOCKED: branch-switch in a SHARED tree.
+1 other live session is in this tree.</span>
+  Switching rips out their uncommitted work.
+Use an isolated worktree:
+  git worktree add ../repo-x -b feature-x
+<span class="c"># solo session? never impeded. bypass once:
+#   WT_ALLOW_SHARED_TREE=1</span></pre>
+      <div class="card" style="margin-top:.9rem">
+        <div class="t"><b>Heartbeat registry:</b> each session touches a file recording which tree it occupies. "Co-tenant" = another live session in the <em>same</em> tree. Zero cost for a solo workflow.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 CI -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · the gate</div>
+  <h2>The <span class="accent">checks</span> workflow</h2>
+  <p class="sub">GitHub Actions on a self-hosted runner. One workflow, named <code>checks</code>, is the whole quality gate — the same discipline the local hooks enforce, run authoritatively server-side.</p>
+  <div class="cols3">
+    <div class="card"><h3>backend</h3><div class="t">ruff · mypy · <b>validate_arch</b> · check_spec_sync · <b>test-drift</b> · pytest (in-memory sqlite, no sidecars)</div></div>
+    <div class="card"><h3>web</h3><div class="t"><code>tsc -b</code> (project refs incl. tests — not <code>--noEmit</code>) · vitest</div></div>
+    <div class="card"><h3>web-perf</h3><div class="t">Lighthouse budgets against the production build — a big dep in the entry chunk goes red</div></div>
+  </div>
+  <p class="lead" style="margin-top:1.3rem">Everything the local gate does, CI does again as the source of truth — so a bypassed local hook still can't merge past a red gate.</p>
+</section>
+
+<!-- 14 GREEN CI != DEPLOY -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · the deploy gate (ADR-065)</div>
+  <h2>"Green CI" must actually <span class="accent">block the deploy</span></h2>
+  <p class="sub">The subtle failure: the image build and the test gate ran <em>in parallel</em> on push. A red gate still built and shipped an image. CI was green-ish and prod was broken.</p>
+  <div class="cols">
+    <div>
+      <div class="eyebrow" style="color:var(--oxblood)">Before — they race</div>
+      <div class="flow" style="flex-direction:column">
+        <div class="step"><span class="s">push main</span>checks &nbsp;+&nbsp; image-build <span class="pill block">parallel</span></div>
+        <div class="arrow">↓</div>
+        <div class="step gate"><span class="s">flux</span>deploys the image — <b>even if checks failed</b></div>
+      </div>
+    </div>
+    <div>
+      <div class="eyebrow" style="color:var(--sage)">After — image chains off checks</div>
+      <div class="flow" style="flex-direction:column">
+        <div class="step"><span class="s">push main</span>checks runs</div>
+        <div class="arrow">↓ on <code>workflow_run</code> · conclusion==success</div>
+        <div class="step ok"><span class="s">image-build</span>only now — then flux deploys</div>
+      </div>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:1.2rem"><b>Red checks → no <code>workflow_run</code> success → no image → no deploy.</b> The build checks out the exact commit the gate passed on. No branch-protection plan required.</p>
+</section>
+
+<!-- 15 GITOPS -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · delivery</div>
+  <h2>GitOps + <span class="accent">immutable</span> images</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Flux reconciles git → cluster.</b> The deployed state is a commit; a bump is a <code>chore(gitops): bump images</code> commit, reviewable and revertible.</li>
+        <li><b>Every deployed pod pins an immutable ref</b> (digest / git-sha). No mutable <code>:dev</code>/<code>:latest</code> tags — a "rollout restart" can't silently serve stale code.</li>
+        <li><b>A runtime guard</b> (<code>verify-deployed-code.sh</code>) asserts <em>running == intended</em>: the pod's source hash matches the working tree. Green means the cluster really runs your latest.</li>
+      </ul>
+    </div>
+    <div class="card ok">
+      <h3>Why "immutable + verify"</h3>
+      <div class="t" style="margin-top:.4rem">A whole class of "it works on my machine / the pod has old code" bugs disappears when the tag can't change under you and a script proves what's actually running. Two lessons in this repo exist precisely because a mutable tag lied.</div>
+      <div class="divider"></div>
+      <div class="t"><b>Post-deploy smoke</b> re-checks the live pod (real cookie auth, schema-fuzz for 5xx) — the last line before "it's live and verified", said plainly.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 FULL LOOP -->
+<section class="slide">
+  <div class="eyebrow">How it all fits</div>
+  <h2>Idea → running code, <span class="accent">gated at every step</span></h2>
+  <div class="flow">
+    <div class="step"><span class="s">1 · spec</span>write + review the spec first</div><div class="arrow">→</div>
+    <div class="step"><span class="s">2 · code</span>edit in an isolated worktree</div><div class="arrow">→</div>
+    <div class="step gate"><span class="s">3 · commit</span>test-drift · arch · types · spec-sync</div><div class="arrow">→</div>
+    <div class="step gate"><span class="s">4 · push / PR</span>full CI checks</div>
+  </div>
+  <div class="flow" style="margin-top:.6rem">
+    <div class="step gate"><span class="s">5 · merge</span>checks on main</div><div class="arrow">→</div>
+    <div class="step ok"><span class="s">6 · build</span>image ONLY if checks green</div><div class="arrow">→</div>
+    <div class="step ok"><span class="s">7 · deploy</span>flux · immutable ref</div><div class="arrow">→</div>
+    <div class="step ok"><span class="s">8 · verify</span>running==intended + smoke</div>
+  </div>
+  <p class="lead" style="margin-top:1.5rem">Notice the shape: <b>the same rules</b> (spec-first, test-drift, arch) are checked at the edit, at the commit, and in CI. Redundant on purpose — each layer is a net under the one above.</p>
+</section>
+
+<!-- 17 WAR STORIES -->
+<section class="slide">
+  <div class="eyebrow">Every rule earned its place</div>
+  <h2>Rules ← <span class="accent">real incidents</span></h2>
+  <table>
+    <tr><th>What happened</th><th>The rule it created</th></tr>
+    <tr><td>Two sessions shared a tree; one's work was scattered by the other's <code>git checkout</code>.</td><td><b>Worktree-per-session</b> guard + launcher.</td></tr>
+    <tr><td>A red test gate still built + shipped an image; prod ran code that failed CI.</td><td><b>Image builds chain off <code>workflow_run</code> of checks success.</b></td></tr>
+    <tr><td>An endpoint 500'd in prod because an observability wrapper crashed on a route — a unit test passed because it ran with the wrapper off.</td><td>Serve the exact prod middleware stack; test the real ASGI surface.</td></tr>
+    <tr><td>A behavioural change shipped with a stale test; suite stayed green.</td><td><b>test-drift</b> gate.</td></tr>
+    <tr><td>A dense statement re-parse tripped every pipeline size limit in turn — 8 commits for one file.</td><td>Size every stage for the worst case; a <b>lesson</b> so the next one is 1 commit.</td></tr>
+  </table>
+  <p class="lead" style="margin-top:1.1rem">This is the meta-point: don't design the governance up front — <b>let each incident harden into a gate or a lesson.</b> The harness is where they get teeth.</p>
+</section>
+
+<!-- 18 APPLY -->
+<section class="slide">
+  <div class="eyebrow">Apply it to your project</div>
+  <h2>It's packaged — <span class="accent">one command</span></h2>
+  <p class="sub">The generic layer is extracted into <code>claude-control-kit</code> (a repo) + a <code>/scaffold-controls</code> skill. Install the harness into any repo; fill in what's yours.</p>
+  <div class="cols">
+    <div>
+      <pre><span class="c"># base harness (any language)</span>
+$ bash claude-control-kit/install.sh
+  <span class="k">✓</span> worktree guards + launcher
+  <span class="k">✓</span> commit/push gate runner (.dev/gates/*)
+  <span class="k">✓</span> .dev/ scaffold (adr/lessons/tasks/gates)
+  <span class="k">✓</span> CLAUDE.md + CI + settings templates
+  <span class="c"># idempotent · never clobbers existing files</span>
+
+<span class="c"># + full Python/DDD ruleset as a profile</span>
+$ bash install.sh <span class="b">--profile python-ddd</span>
+  <span class="k">✓</span> ruff · mypy · <b>22-rule arch lint</b>
+  <span class="k">✓</span> spec-sync · test-drift · spec-first hook</pre>
+    </div>
+    <div>
+      <div class="card">
+        <h3>Generic vs yours — the split</h3>
+        <div class="t" style="margin-top:.4rem"><b>Ships working:</b> worktree isolation, the gate <em>wiring</em>, the <code>.dev/</code> discipline, the CI deploy-gate pattern.</div>
+        <div class="t" style="margin-top:.5rem"><b>You fill in:</b> the actual gates — drop executable scripts in <code>.dev/gates/</code> (your lint, types, test-drift map, arch rules). The runner is language-agnostic; <em>what</em> you enforce is yours.</div>
+      </div>
+      <div class="card" style="margin-top:.9rem">
+        <div class="t"><b>Verified:</b> the arch linter, re-parameterized, reproduces the reference project's own result — and blocks a real layering violation on a <em>different</em> package. The kit self-tests 6/6.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 HONEST -->
+<section class="slide">
+  <div class="eyebrow">Be honest about it</div>
+  <h2>What the harness <span class="accent">actually enforces</span></h2>
+  <p class="sub">Three tiers — know which is which so you set expectations, not surprises.</p>
+  <div class="cols3">
+    <div class="card auto" style="border-left:3px solid var(--sage);padding-left:1rem">
+      <span class="pill auto">auto · out of the box</span>
+      <h3 style="margin-top:.6rem">Concurrency safety</h3>
+      <div class="t">Multi-session <code>git checkout/stash/reset</code> is hard-blocked under a co-tenant. Zero config; dormant for a solo session.</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--oxblood);padding-left:1rem">
+      <span class="pill block">opt-in · you fill</span>
+      <h3 style="margin-top:.6rem">Commit/push gates</h3>
+      <div class="t">The runner is wired but <b>empty</b> until you add gates to <code>.dev/gates/</code>. Then lint/type/arch/test-drift hard-block — humans and agents alike.</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--brass);padding-left:1rem">
+      <span class="pill warn">advisory</span>
+      <h3 style="margin-top:.6rem">Nudges + conventions</h3>
+      <div class="t">Push-to-main warning, co-tenant edit warning, and the <code>.dev/</code> methodology + CLAUDE.md — enforced by convention + review, not a blocker.</div>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:1.4rem">The kit gives you a <b>governance framework + one concurrency safety net</b>, not a canned rulebook. The rules should be yours; the harness gives them teeth.</p>
+</section>
+
+<!-- 20 CHECKLIST -->
+<section class="slide">
+  <div class="eyebrow">Getting started</div>
+  <h2>Adoption checklist</h2>
+  <ol style="font-size:1.02rem;line-height:1.8;max-width:70ch;margin-top:.4rem">
+    <li>Run <code>install.sh</code> in your repo (add <code>--profile python-ddd</code> if it fits). <span class="muted">Idempotent, non-destructive.</span></li>
+    <li><b>Activate git hooks:</b> <code>git config core.hooksPath .githooks</code>. Merge the hooks block into <code>.claude/settings.json</code>.</li>
+    <li><b>Fill <code>.dev/gates/</code></b> with your real lint / typecheck / test-drift / arch gates. Confirm each blocks on a deliberate violation, then passes.</li>
+    <li><b>Write your CLAUDE.md</b> from the template — stack, conventions, and start an ADR index (<code>ADR-000</code> ships as the template).</li>
+    <li><b>Wire CI:</b> a <code>checks</code> workflow; if you deploy on push, adopt the <code>workflow_run</code> deploy-gate so a red gate blocks delivery.</li>
+    <li><b>Add the <code>cw</code> launcher</b> to your shell rc; start sessions with it so each gets an isolated worktree.</li>
+    <li><b>Then let it grow:</b> every incident → a new gate or a lesson. The system hardens itself.</li>
+  </ol>
+</section>
+
+<!-- 21 PRINCIPLES -->
+<section class="slide">
+  <div class="eyebrow">Takeaways</div>
+  <h2>Seven transferable <span class="accent">principles</span></h2>
+  <ul class="two-list" style="font-size:1rem;margin-top:.5rem">
+    <li><b>Sources of truth live in the repo</b> — decisions, behaviour, lessons, work state. Versioned, greppable, next to the code.</li>
+    <li><b>Give the agent an operating manual</b> — instructions it must follow, not prose it might read.</li>
+    <li><b>Spec-first</b> — the design is reviewed before the code, and a checker keeps them from drifting.</li>
+    <li><b>Shift enforcement left</b> — block at edit/commit/push, not just at the PR. Redundant layers on purpose.</li>
+    <li><b>Every behavioural change carries a test</b> — no silent test drift.</li>
+    <li><b>Green CI must block the deploy</b> — chain the build off the gate, not the push.</li>
+    <li><b>Isolate concurrency</b> — a worktree per session; and let each incident harden into a gate or a lesson.</li>
+  </ul>
+</section>
+
+<!-- 22 CLOSING -->
+<section class="slide">
+  <div class="title-wrap">
+    <div class="eyebrow">Take it and run</div>
+    <h2 style="font-size:clamp(2rem,4.6vw,3.4rem);max-width:24ch">The goal isn't rules. It's a system that <span class="accent">stays coherent</span> as it — and the number of agents touching it — grows.</h2>
+    <div class="divider" style="margin:2rem 0"></div>
+    <div class="cols3">
+      <div class="card"><h3>Repo</h3><div class="t"><code>claude-control-kit</code> — install.sh, kit/, python-ddd profile, self-test.</div></div>
+      <div class="card"><h3>Skill</h3><div class="t"><code>/scaffold-controls</code> — installs the harness in any project + does the judgment steps.</div></div>
+      <div class="card"><h3>Reference</h3><div class="t">MyWB / Warren — 75 ADRs, 22 arch rules, the full harness in production.</div></div>
+    </div>
+    <p class="lead" style="margin-top:1.6rem">Start with the concurrency guard + one gate. Add the rest as your own incidents teach you what to enforce.</p>
+  </div>
+</section>
+
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="hint kbd-nav">← → · space · <kbd>f</kbd> fullscreen</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let i=0;
+  const foot=(n)=>`<span>MyWB engineering playbook · governing AI-assisted development</span><span><span class="brand">${String(n+1).padStart(2,'0')}</span> / ${slides.length}</span>`;
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    document.getElementById('progress').style.width=((i+1)/slides.length*100)+'%';
+    let f=slides[i].querySelector('.foot');
+    if(!f){f=document.createElement('div');f.className='foot';slides[i].appendChild(f);}
+    f.innerHTML=foot(i);
+    location.hash=i+1;
+  }
+  function go(d){show(i+d);}
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(-1);}
+    else if(e.key==='Home'){show(0);} else if(e.key==='End'){show(slides.length-1);}
+    else if(e.key==='f'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+  });
+  document.getElementById('deck').addEventListener('click',e=>{
+    if(e.target.closest('a,code,pre'))return;
+    go(e.clientX < window.innerWidth*0.28 ? -1 : 1);
+  });
+  const h=parseInt(location.hash.slice(1)); show(Number.isFinite(h)&&h>0?h-1:0);
+</script>
+</body>
+</html>
