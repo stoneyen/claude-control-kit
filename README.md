@@ -80,6 +80,9 @@ Prereqs on the machine: `bash`, `git`, `jq`.
 
 ## Slides: the engineering playbook
 
+**Start here:** [`docs/index.html`](docs/index.html) — one landing page linking
+all three decks (overview zh/en + internals zh).
+
 [`docs/mywb-engineering-playbook.html`](docs/mywb-engineering-playbook.html) — a
 self-contained slide deck explaining the governance model behind this kit
 (sources of truth, CLAUDE.md, the enforcement harness, spec-first, CI/CD deploy
