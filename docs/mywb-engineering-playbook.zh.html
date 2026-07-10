@@ -426,7 +426,8 @@ $ git checkout main
     <tr><td><b>web-perf</b>(Lighthouse)</td><td>效能預算 —— 大 dep 進入口 chunk 就紅</td><td>CI(advisory)</td></tr>
     <tr><td><b>smoke</b>(post-deploy)</td><td>對<b>線上 pod</b> 真 cookie 認證 + schema-fuzz 抓 5xx</td><td>部署後,自動</td></tr>
   </table>
-  <p class="lead" style="margin-top:1rem">關鍵:<b>測試都跑無外部服務的記憶體 sqlite</b> → 快、穩、可平行;真 stack 的驗證留給部署後 smoke。</p>
+  <p class="lead" style="margin-top:.9rem">關鍵:<b>測試都跑無外部服務的記憶體 sqlite</b> → 快、穩、可平行;真 stack 的驗證留給部署後 smoke。</p>
+  <p class="lead" style="margin-top:.5rem;font-size:.9rem;color:var(--muted)"><b style="color:var(--brass-soft)">test-drift 綁哪幾種:</b> 上表前 4 列(<b>unit · integration · fuzz · e2e</b>,加上前端 vitest <code>*.test.tsx</code>)有「原始碼↔測試」對應,<b>會被 test-drift 要求同步變更</b>;<b>web-perf(Lighthouse)與部署後 smoke 不被綁</b> —— 它們是預算 / 部署 gate,沒有逐變更的測試檔可對應。</p>
 </section>
 
 <!-- 15c REVIEW + SCAN -->
