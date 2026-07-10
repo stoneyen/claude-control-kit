@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>治理 AI 協作開發 — MyWB 工程實務手冊</title>
+<style>
+  :root{
+    --bg:#0b0a08; --panel:#151310; --panel2:#1c1915; --ink:#efe9dd; --muted:#a89f8d;
+    --brass:#c9a24a; --brass-soft:#e6c877; --sage:#5e9e7e; --oxblood:#c26a5c; --slate:#7e93c8;
+    --line:#2a251d; --code:#12100c;
+    --serif:"Newsreader","Songti TC","Noto Serif CJK TC","Iowan Old Style",Georgia,serif;
+    --ui:-apple-system,BlinkMacSystemFont,"PingFang TC","Heiti TC","Microsoft JhengHei","Segoe UI",Roboto,sans-serif;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--ui);
+    font-feature-settings:"tnum";-webkit-font-smoothing:antialiased;overflow:hidden}
+  .deck{height:100vh;width:100vw;position:relative}
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;
+    padding:5.2vh 7vw 8vh;opacity:0;transition:opacity .28s ease;overflow:auto}
+  .slide.active{display:flex;opacity:1}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:.2px;margin:0}
+  .eyebrow{font-family:var(--ui);text-transform:uppercase;letter-spacing:.18em;font-size:.74rem;
+    color:var(--brass);font-weight:700;margin-bottom:1.2rem}
+  h2{font-size:clamp(1.7rem,3.6vw,2.9rem);line-height:1.14;color:#fff;margin-bottom:.4rem}
+  .sub{color:var(--muted);font-size:clamp(1rem,1.5vw,1.18rem);max-width:52ch;margin-bottom:2rem;line-height:1.7}
+  p{line-height:1.7}
+  ul{margin:.2rem 0;padding-left:1.15rem}
+  li{margin:.5rem 0;line-height:1.7;color:var(--ink)}
+  li b, p b{color:#fff}
+  .accent{color:var(--brass-soft)}
+  code,kbd{font-family:var(--mono);background:var(--code);border:1px solid var(--line);
+    border-radius:5px;padding:.08em .4em;font-size:.88em;color:var(--brass-soft)}
+  pre{font-family:var(--mono);background:var(--code);border:1px solid var(--line);border-radius:10px;
+    padding:1rem 1.2rem;overflow:auto;font-size:.82rem;line-height:1.6;color:#d8d0bd;margin:.6rem 0}
+  pre .c{color:#7d7666}
+  pre .k{color:var(--sage)}
+  pre .r{color:var(--oxblood)}
+  pre .b{color:var(--brass-soft)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem}
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.3rem}
+  .card h3{font-size:1.12rem;color:#fff;margin-bottom:.35rem}
+  .card .t{font-size:.86rem;color:var(--muted);line-height:1.65}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;padding:.12em .55em;border-radius:6px;
+    border:1px solid var(--line);color:var(--brass-soft);background:#000;margin-right:.3rem}
+  table{border-collapse:collapse;width:100%;font-size:.88rem;margin-top:.4rem}
+  th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.6}
+  th{color:var(--brass);letter-spacing:.06em;font-size:.74rem;font-weight:700}
+  td b{color:#fff}
+  .muted{color:var(--muted)}
+  .big-quote{font-family:var(--serif);font-size:clamp(1.5rem,3.4vw,2.6rem);line-height:1.4;color:#fff;max-width:24ch}
+  .stat-row{display:flex;gap:2.4rem;flex-wrap:wrap;margin-top:2.2rem}
+  .stat .n{font-family:var(--serif);font-size:2.5rem;color:var(--brass-soft);line-height:1}
+  .stat .l{font-size:.78rem;color:var(--muted);letter-spacing:.06em;margin-top:.3rem}
+  .flow{display:flex;align-items:stretch;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
+  .flow .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;
+    font-size:.84rem;flex:1;min-width:130px;line-height:1.5}
+  .flow .step .s{color:var(--brass);font-family:var(--mono);font-size:.68rem;display:block;margin-bottom:.25rem}
+  .arrow{color:var(--brass);align-self:center;font-size:1.1rem}
+  .gate{border-left:3px solid var(--oxblood);padding-left:.9rem}
+  .ok{border-left:3px solid var(--sage);padding-left:.9rem}
+  .pill{display:inline-block;padding:.15em .6em;border-radius:999px;font-size:.74rem;font-weight:700}
+  .pill.block{background:rgba(194,106,92,.18);color:var(--oxblood);border:1px solid rgba(194,106,92,.4)}
+  .pill.warn{background:rgba(201,162,74,.16);color:var(--brass-soft);border:1px solid rgba(201,162,74,.4)}
+  .pill.auto{background:rgba(94,158,126,.16);color:var(--sage);border:1px solid rgba(94,158,126,.4)}
+  .foot{position:absolute;left:7vw;right:7vw;bottom:2.6vh;display:flex;justify-content:space-between;
+    align-items:center;font-size:.74rem;color:#6b6456;font-family:var(--mono)}
+  .foot .brand{color:var(--brass)}
+  .progress{position:absolute;left:0;bottom:0;height:3px;background:var(--brass);transition:width .28s ease;z-index:5}
+  .hint{position:absolute;right:2vw;bottom:1vh;font-size:.68rem;color:#4a453b;font-family:var(--mono)}
+  .lead{font-size:1.05rem;color:var(--ink);max-width:60ch;line-height:1.8}
+  .two-list{columns:2;column-gap:2.4rem}
+  .two-list li{break-inside:avoid}
+  .divider{height:1px;background:var(--line);margin:1.2rem 0}
+  .small{font-size:.82rem}
+  .title-wrap{margin:auto 0}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide active">
+  <div class="title-wrap">
+    <div class="eyebrow">工程實務手冊 · 參考範例:MyWB / Warren</div>
+    <h1 style="font-size:clamp(2.2rem,5.4vw,4rem);line-height:1.15;color:#fff;max-width:20ch">
+      治理<span class="accent"> AI 協作</span>開發</h1>
+    <p class="sub" style="margin-top:1.4rem;font-size:1.15rem">
+      一個專案如何讓<b>人與 coding agent</b>長期保持一致 —— 以及讓你把同一套紀律
+      套用到<b>自己專案</b>的可重用 harness。</p>
+    <div class="stat-row">
+      <div class="stat"><div class="n">75</div><div class="l">ADR 決策</div></div>
+      <div class="stat"><div class="n">22</div><div class="l">架構規則</div></div>
+      <div class="stat"><div class="n">2,700+</div><div class="l">後端測試</div></div>
+      <div class="stat"><div class="n">34</div><div class="l">lessons</div></div>
+      <div class="stat"><div class="n">4+1</div><div class="l">gate 層級</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 WHY -->
+<section class="slide">
+  <div class="eyebrow">問題</div>
+  <h2>AI 寫程式很快。難的是讓<span class="accent">系統長期一致</span>。</h2>
+  <p class="sub">生成速度暴露了真正的瓶頸:如何在時間、多人、如今還有多個 <em>agent</em> 之下維持一致。這些是我們一再踩到的失效模式:</p>
+  <div class="cols3">
+    <div class="card"><h3>Spec 漂移</h3><div class="t">程式改了,設計文件默默落後。下一個讀的人相信了一個謊。</div></div>
+    <div class="card"><h3>Test 漂移</h3><div class="t">行為變了,測試留在舊版。套件仍全綠,卻不再描述程式碼。</div></div>
+    <div class="card"><h3>CI 綠 ≠ 可部署</h3><div class="t">image build 與測試 gate 並行 —— 紅燈照樣把壞掉的 code 推上 prod。</div></div>
+    <div class="card"><h3>並行互踩</h3><div class="t">兩個 agent session 共用一棵 working tree;一個 <code>git checkout</code> 把另一個未提交的工作連根拔起。</div></div>
+    <div class="card"><h3>決策無紀錄</h3><div class="t">「為什麼這樣做?」每隔幾週就被重新爭論、或不小心被破壞一次。</div></div>
+    <div class="card"><h3>教訓流失</h3><div class="t">同一個非顯而易見的 bug 從頭再查一次 —— 本來 10 分鐘的修法又花掉一天。</div></div>
+  </div>
+  <p class="lead" style="margin-top:1.4rem">這份手冊裡的每一條規則,都是因為上面某一項<b>真的咬過我們一次</b>。沒有一條是空談。</p>
+</section>
+
+<!-- 3 THESIS -->
+<section class="slide">
+  <div class="eyebrow">核心主張</div>
+  <h2>讓 agent 協作開發<span class="accent">耐久</span>的四個動作</h2>
+  <div class="cols" style="margin-top:1rem">
+    <div class="card"><span class="tag">1</span><h3 style="display:inline">源頭放進 repo</h3>
+      <div class="t" style="margin-top:.5rem">決策、行為、血淚 ops 知識、工作狀態 —— 版本控制在程式碼旁,而非會腐化的 wiki。(<code>.dev/</code>)</div></div>
+    <div class="card"><span class="tag">2</span><h3 style="display:inline">給 agent 一本操作手冊</h3>
+      <div class="t" style="margin-top:.5rem">一份 <code>CLAUDE.md</code>,是 agent 必須遵守的<em>指令</em> —— 慣例、決策索引、spec-first 規則。不是文件,是指令。</div></div>
+    <div class="card"><span class="tag">3</span><h3 style="display:inline">用 harness 在 CI 之前強制</h3>
+      <div class="t" style="margin-top:.5rem">hooks + git gate 在最早的邊界就<b>阻擋</b>(edit → commit → push),CI 才查的紀律在你推之前就先擋下。</div></div>
+    <div class="card"><span class="tag">4</span><h3 style="display:inline">隔離並行</h3>
+      <div class="t" style="margin-top:.5rem">每個 session 一棵 git worktree,並行的人/agent 永遠無法破壞彼此的分支或未提交狀態。</div></div>
+  </div>
+  <p class="lead" style="margin-top:1.5rem">接下來就是把這四點講具體 —— 最後是<b>怎麼裝進你的專案</b>。</p>
+</section>
+
+<!-- 4 .dev -->
+<section class="slide">
+  <div class="eyebrow">動作 1 · 源頭</div>
+  <h2><span class="accent">.dev/</span> 四個目錄</h2>
+  <p class="sub">四種耐久知識,各一個目錄。「做任何變更或回答設計問題前,先查這些。」</p>
+  <table>
+    <tr><th>目錄</th><th>放什麼</th><th>紀律</th></tr>
+    <tr><td><b>.dev/adr/</b></td><td>架構決策紀錄,一決策一檔(Context · Decision · Consequences · Alternatives)。</td><td>改架構前先 grep。牴觸某條?對齊它,或寫新 ADR <b>supersede</b> 舊的。絕不默默違反。</td></tr>
+    <tr><td><b>.dev/specs/</b></td><td>每個 aggregate 的行為 spec:entity spec + 每個 use case 一份 YAML(invariants、pre/postconditions、events、tests)。</td><td>寫程式<b>前</b>先與人 review。spec-first。</td></tr>
+    <tr><td><b>.dev/lessons/</b></td><td>血淚修法,以<em>症狀</em>命名。</td><td>查非顯而易見的 bug 前先 grep;修好後寫一則。</td></tr>
+    <tr><td><b>.dev/tasks/</b></td><td>檔案式 task ledger —— 跨 session、跨當機都存活。</td><td>跨 session 回答「上次做到哪?」。</td></tr>
+  </table>
+  <p class="lead" style="margin-top:1.3rem">wiki 在旁邊、沒版本控制。這些就<b>在程式碼旁</b>,隨每次 clone 與 PR 一起走。</p>
+</section>
+
+<!-- 5 ADR -->
+<section class="slide">
+  <div class="eyebrow">源頭 · 決策</div>
+  <h2>ADR —— <span class="accent">撐過人員流動</span>的決策</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>一決策一檔</b>,編號:<code>ADR-065-checks-gate-blocks-deploy.md</code>。</li>
+        <li>固定結構:<b>Context</b>(當時的取捨)· <b>Decision</b> · <b>Consequences</b> · <b>Alternatives Considered</b> · <b>Related</b>。</li>
+        <li><b>用 supersede,不刪除。</b>新決策寫新 ADR,並指名它取代的那條 —— 推理鏈完整保留。</li>
+        <li>CLAUDE.md 裡有一張<b>索引表</b>,每條決策一行摘要供 agent grep。<span class="muted">(目前 75 條、還在增加。)</span></li>
+      </ul>
+      <p class="lead" style="margin-top:.8rem">回報:「為什麼長這樣?」幾秒內有答案;會破壞某決策的改動,在出貨前就被擋下。</p>
+    </div>
+    <pre><span class="c"># ADR-065 — The checks gate blocks deployment</span>
+- Date: 2026-07-05
+- Status: <span class="k">Accepted</span>
+
+## Context
+image build 與 checks 在 push 時並行,
+紅 gate 照樣出貨。此 repo 方案的
+branch protection 回 403。
+
+## Decision
+產出部署的 workflow 改由
+<span class="b">workflow_run</span>(checks 成功)觸發,而非 push。
+
+## Consequences
+紅 checks → 無 image → 無部署。
+部署延遲 +一次 checks。
+
+## Alternatives Considered
+- Branch protection(方案不支援,403)— 否決。
+- 並行 + 事後 rollback — 被動,已出貨。</pre>
+  </div>
+</section>
+
+<!-- 6 SPECS -->
+<section class="slide">
+  <div class="eyebrow">源頭 · 行為</div>
+  <h2>Spec-driven development(規格先行)</h2>
+  <p class="sub">變更的設計在寫程式<b>之前</b>先寫、先 review。再用機器讓 spec 與 code 不漂移。</p>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>spec-first 規則:</b>要編輯 domain aggregate / use case / HTTP route 前,先更新它的 spec —— 而且是<em>硬 gate</em>:新增的 aggregate/UC 若沒有對應 spec 目錄,直接擋 commit。</li>
+        <li><b>兩份產物:</b>entity spec(結構、invariants、狀態機)+ 每個 use case 一份 YAML(input、pre/postconditions、events、test scenarios)。</li>
+        <li><b>check_spec_sync</b> 斷言 entity spec 與 use-case YAML 保持一致 —— 程式改了欄位名但 spec 沒跟,gate 就紅。</li>
+        <li>有一條引導流程(<code>/execute-uc</code>)從 review 過的 spec 產出骨架,再跑四道 gate。</li>
+      </ul>
+    </div>
+    <div class="card ok">
+      <h3>為什麼贏過「先寫 code、之後補文件」</h3>
+      <div class="t" style="margin-top:.4rem">
+        spec 是人核准的契約。agent 是<em>照 spec 實作</em>,不是照感覺。而因為有 checker 綁 spec↔code,文件無法悄悄變成虛構 —— 那正是多數文件不可信的原因。
+      </div>
+      <div class="divider"></div>
+      <div class="t"><b>CLAUDE.md 裡的觸發語(原文):</b> <span class="muted">「若你即將編輯 <code>domain/</code>、<code>application/</code>、<code>routers/</code> 底下任何檔案 —— 停。先確認對應 spec 是否存在。沒有,就先寫 spec。」</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 LESSONS -->
+<section class="slide">
+  <div class="eyebrow">源頭 · ops 知識</div>
+  <h2>Lessons —— 別再<span class="accent">重複踩同一支耙子</span></h2>
+  <p class="sub">每個非顯而易見的 bug 一份 markdown,以<em>症狀</em>命名讓下一個人 grep 得到。成本約 10 分鐘;省下的是下一個人不再損失一天。</p>
+  <div class="cols3">
+    <div class="card"><h3 class="small">tilt-live-update-silently-fails</h3><div class="t"><code>tilt trigger</code> 回報成功、pod Running,但 pod 裡的 code 是舊的。</div></div>
+    <div class="card"><h3 class="small">ci-green-but-deploy-ships-broken</h3><div class="t">紅 gate 下 image 照建照部署 —— workflow 並行。</div></div>
+    <div class="card"><h3 class="small">runner-drops-builder-label-on-restart</h3><div class="t">docker 重啟讓 runner 用舊 env 重新註冊 → image job 永久排隊。</div></div>
+  </div>
+  <p class="lead" style="margin-top:1.2rem">結構:<b>何時會咬 · 症狀 · 根因 · 修法 · 如何提早偵測 · 相關。</b>
+    規則落成常規:<b>修好一個非顯而易見的 bug 後,寫下 lesson 並從 commit 連結它。</b></p>
+</section>
+
+<!-- 8 CLAUDE.md -->
+<section class="slide">
+  <div class="eyebrow">動作 2 · 操作手冊</div>
+  <h2>CLAUDE.md 是<span class="accent">指令</span>,不是文件</h2>
+  <div class="cols">
+    <div>
+      <p class="lead">這是 agent 最先讀、且被要求遵守的檔。它不<em>描述</em>系統 —— 它告訴 agent 在系統裡<b>該怎麼行動</b>。</p>
+      <ul style="margin-top:1rem">
+        <li><b>ADR 索引</b> —— 每條決策一行、可 grep。</li>
+        <li><b>不可妥協事項</b> —— 分層規則、「錢一律用 <code>Decimal</code>,絕不 float」、「router 註冊在 <code>/api/&lt;resource&gt;</code>」。</li>
+        <li><b>spec-first 觸發</b> —— 一個明確的硬性停止點。</li>
+        <li><b>enforcement hook 表</b> —— 什麼在哪裡擋。</li>
+        <li><b>session 習慣</b> —— 「每個輪詢迴圈都要有 timeout」、「同一個 aggregate 不要存兩次」。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>它要通過的檢驗</h3>
+      <div class="t" style="margin-top:.4rem">每一行都要回答:<em>「agent 在這裡該做/不該做什麼?」</em>如果只是在描述程式碼本身就看得到的結構,那是噪音 —— 刪掉。</div>
+      <div class="divider"></div>
+      <h3>被同一套 harness 盯著</h3>
+      <div class="t" style="margin-top:.4rem">CLAUDE.md 本身就是 strict-review 觸發項。當它與現況漂移(像並行工作 5 天後那樣),docs-sync 就是一等任務 —— <em>這個 session 的歷史裡就正在做這件事。</em></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ARCH -->
+<section class="slide">
+  <div class="eyebrow">實例 · 把架構變成 gate</div>
+  <h2>Clean Architecture + DDD,<span class="accent">機器強制</span></h2>
+  <div class="cols">
+    <div>
+      <pre><span class="c"># src/&lt;pkg&gt;/  — 依賴只能向內</span>
+<span class="k">domain/</span>          純 Python:entities、value
+                objects、repo <span class="b">ports</span>、events
+                <span class="r">✗ 不可 import sqlalchemy/fastapi</span>
+<span class="k">application/</span>     thin use cases(協調)
+<span class="k">infrastructure/</span>  ORM + repo 實作、adapters
+<span class="k">interfaces/</span>      FastAPI routers、DTOs</pre>
+      <p class="lead" style="margin-top:.6rem">「domain 不 import 框架」、「錢一律 <code>Decimal</code>」、「DTO 在邊界」這些不只是 review 口耳相傳 —— 一個 linter 在每次動到 source 的 commit 上強制<b>其中 22 條</b>。</p>
+    </div>
+    <div>
+      <pre><span class="c"># .dev/gates/40-arch.sh  →  validate_arch.py</span>
+<span class="r">✗ domain/thing.py imports `sqlalchemy`</span>
+  (此層禁止)
+<span class="r">✗ money 欄位用了 float</span>
+<span class="r">✗ router 沒註冊在 /api/…</span>
+
+<span class="k">✅ Gate 2.5 PASS — 0 violations
+   (22 rules enforced)</span></pre>
+      <div class="card" style="margin-top:1rem">
+        <div class="t"><b>可攜性:</b>規則本身就是架構 —— linter 只參數化 package 名。一個「同型」專案把 <code>CCK_PKG</code> 指向自己的 package,就套用同樣 22 條規則。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 HARNESS -->
+<section class="slide">
+  <div class="eyebrow">動作 3 · enforcement harness</div>
+  <h2>把 gate <span class="accent">左移</span> —— 在最早的邊界就擋</h2>
+  <p class="sub">CI 在 PR 邊界擋。這些 hooks 把同樣的問題在你<em>還沒推之前</em>就抓到 —— 便宜到昂貴,各自在自己的邊界阻擋。</p>
+  <table>
+    <tr><th>位置</th><th>跑什麼</th><th>會擋?</th></tr>
+    <tr><td><b>每次編輯</b> · PostToolUse</td><td>lint 剛編輯的檔</td><td><span class="pill warn">回饋</span> 當下修</td></tr>
+    <tr><td><b>編輯 domain/UC/router 檔</b> · PreToolUse</td><td>spec-first 提醒</td><td><span class="pill warn">警告</span></td></tr>
+    <tr><td><b>git commit</b> · .githooks/pre-commit</td><td>test-drift · spec 存在性 ·(動 source 時)lint · arch · spec-sync · types</td><td><span class="pill block">是 — 阻擋</span></td></tr>
+    <tr><td><b>git push</b> · .githooks/pre-push</td><td>test-drift vs base 分支</td><td><span class="pill block">是</span> <span class="muted">(--no-verify 可繞)</span></td></tr>
+    <tr><td><b>共用樹互踩</b> · PreToolUse</td><td>有 co-tenant 時的 git checkout/switch/stash/reset --hard</td><td><span class="pill block">是</span> <span class="muted">(單人不受影響)</span></td></tr>
+    <tr><td><b>PR</b> · CI checks workflow</td><td>完整 pytest · mypy · tsc -b · vitest</td><td><span class="pill block">是(server 端)</span></td></tr>
+  </table>
+  <p class="lead" style="margin-top:1rem">同一套紀律兩種實作:<b>git hooks</b> 擋人<em>也</em>擋 agent;<b>Claude Code hooks</b> 加上 agent 專屬守衛,以及 git hooks 沒接好時的 fallback。</p>
+</section>
+
+<!-- 11 TEST DRIFT -->
+<section class="slide">
+  <div class="eyebrow">值得單獨點名的 gate</div>
+  <h2>test-drift:每個行為變更都<span class="accent">帶一個測試</span></h2>
+  <div class="cols">
+    <div>
+      <p class="lead">被監看的 source 檔改了、同一個 diff 裡<b>沒有對應的測試變更</b> → 擋 commit。它把每個 source 檔對應到它的測試 —— 用 stem、用 router 的 fuzz 覆蓋、或用 bounded-context 群組。</p>
+      <ul style="margin-top:1rem">
+        <li><b>刻意可豁免:</b>純重構、plumbing、migration、常數 —— 但你要在 commit 說明。重點是<em>每次變更都是一個有意識的決定</em>,而非默默漂移。</li>
+        <li>在 commit(staged)、push(vs base 分支)、CI(commit-range)各跑一次。</li>
+      </ul>
+    </div>
+    <pre><span class="c"># pre-commit</span>
+== test-drift guard ==  base=main
+  <span class="k">✅ stem</span>  application/place_order.py
+  <span class="r">❌ none</span>  domain/order.py
+
+⚠️  1 個 source 變更沒有測試變更:
+    - domain/order.py
+
+<span class="r">🚫 commit 被擋</span>
+加個測試,或在 commit 訊息宣告
+這是 test-neutral。</pre>
+  </div>
+</section>
+
+<!-- 12 WORKTREE -->
+<section class="slide">
+  <div class="eyebrow">動作 4 · 隔離並行</div>
+  <h2>每個 session 一棵 <span class="accent">git worktree</span></h2>
+  <div class="cols">
+    <div>
+      <div class="card gate">
+        <h3>血淚故事</h3>
+        <div class="t" style="margin-top:.35rem">兩個 agent session 共用一棵 working tree。一個 <code>git checkout</code> 切到別的分支 —— 另一個 session 未提交的工作就散落到錯的分支、被吞進 stash。復原花了整整一次 worktree 重建。</div>
+      </div>
+      <p class="lead" style="margin-top:1rem">分層修法:一個 <b>launcher</b> 讓每個 session 都在全新 <code>git worktree</code> 啟動(乾淨就自動移除)—— 預設隔離。再加一個 <b>guard hook</b> 當安全網。</p>
+    </div>
+    <div>
+      <pre><span class="c"># guard 只在有 live co-tenant 時觸發</span>
+$ git checkout main
+<span class="r">🚫 BLOCKED:共用樹裡切分支。
+此樹另有 1 個 live session。</span>
+  切分支會把他們未提交的工作拔掉。
+改用獨立 worktree:
+  git worktree add ../repo-x -b feature-x
+<span class="c"># 單人?完全不受影響。一次性繞過:
+#   WT_ALLOW_SHARED_TREE=1</span></pre>
+      <div class="card" style="margin-top:.9rem">
+        <div class="t"><b>心跳登記:</b>每個 session 觸碰一個檔、記錄它在哪棵樹。「co-tenant」= 同一棵樹裡另有 live session。單人流程零成本。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 CI -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · gate</div>
+  <h2><span class="accent">checks</span> workflow</h2>
+  <p class="sub">GitHub Actions,跑在 self-hosted runner。一個叫 <code>checks</code> 的 workflow 就是整個品質 gate —— 本地 hooks 強制的同一套紀律,在 server 端權威地再跑一次。</p>
+  <div class="cols3">
+    <div class="card"><h3>backend</h3><div class="t">ruff · mypy · <b>validate_arch</b> · check_spec_sync · <b>test-drift</b> · pytest(記憶體 sqlite,無 sidecar)</div></div>
+    <div class="card"><h3>web</h3><div class="t"><code>tsc -b</code>(project refs 含測試 —— 不是 <code>--noEmit</code>)· vitest</div></div>
+    <div class="card"><h3>web-perf</h3><div class="t">對 production build 跑 Lighthouse budget —— 大 dep 進入口 chunk 就變紅</div></div>
+  </div>
+  <p class="lead" style="margin-top:1.3rem">本地 gate 做的每件事,CI 都以真相來源再做一次 —— 就算本地 hook 被繞過,紅 gate 仍擋得住 merge。</p>
+</section>
+
+<!-- 14 GREEN CI != DEPLOY -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · 部署閘門(ADR-065)</div>
+  <h2>「CI 綠」必須真的<span class="accent">擋住部署</span></h2>
+  <p class="sub">微妙的失效:image build 與測試 gate 在 push 時<em>並行</em>。紅 gate 照樣建 image、照樣出貨。CI 看起來綠、prod 卻壞了。</p>
+  <div class="cols">
+    <div>
+      <div class="eyebrow" style="color:var(--oxblood)">之前 —— 兩者競速</div>
+      <div class="flow" style="flex-direction:column">
+        <div class="step"><span class="s">push main</span>checks &nbsp;+&nbsp; image-build <span class="pill block">並行</span></div>
+        <div class="arrow">↓</div>
+        <div class="step gate"><span class="s">flux</span>部署 image —— <b>即使 checks 紅了</b></div>
+      </div>
+    </div>
+    <div>
+      <div class="eyebrow" style="color:var(--sage)">之後 —— image 接在 checks 之後</div>
+      <div class="flow" style="flex-direction:column">
+        <div class="step"><span class="s">push main</span>checks 執行</div>
+        <div class="arrow">↓ <code>workflow_run</code> · conclusion==success</div>
+        <div class="step ok"><span class="s">image-build</span>此時才建 — flux 才部署</div>
+      </div>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:1.2rem"><b>紅 checks → 無 <code>workflow_run</code> success → 無 image → 無部署。</b> build 會 checkout gate 通過的<em>那個</em> commit。不需要 branch-protection 方案。</p>
+</section>
+
+<!-- 15 GITOPS -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · 交付</div>
+  <h2>GitOps + <span class="accent">immutable</span> image</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Flux 把 git → cluster 收斂。</b>部署狀態就是一個 commit;一次 bump 是 <code>chore(gitops): bump images</code> commit,可 review、可 revert。</li>
+        <li><b>每個部署的 pod 都 pin 不可變 ref</b>(digest / git-sha)。沒有可變的 <code>:dev</code>/<code>:latest</code> —— 「rollout restart」無法默默服務舊 code。</li>
+        <li><b>一個 runtime guard</b>(<code>verify-deployed-code.sh</code>)斷言 <em>running == intended</em>:pod 的 source hash 對得上工作樹。綠燈代表 cluster 真的跑你最新的 code。</li>
+      </ul>
+    </div>
+    <div class="card ok">
+      <h3>為什麼「immutable + verify」</h3>
+      <div class="t" style="margin-top:.4rem">當 tag 不會在你腳下變、又有腳本證明實際跑的是什麼,一整類「我這邊沒問題 / pod 是舊 code」的 bug 就消失了。這個 repo 有兩則 lesson 正是因為可變 tag 說了謊。</div>
+      <div class="divider"></div>
+      <div class="t"><b>部署後 smoke</b> 對 live pod 再驗一次(真的 cookie 認證、schema-fuzz 抓 5xx)—— 「已上線且驗證」之前的最後一道防線,誠實地說出來。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 FULL LOOP -->
+<section class="slide">
+  <div class="eyebrow">整體如何串起來</div>
+  <h2>從想法到運行的 code,<span class="accent">每一步都有 gate</span></h2>
+  <div class="flow">
+    <div class="step"><span class="s">1 · spec</span>先寫 + review spec</div><div class="arrow">→</div>
+    <div class="step"><span class="s">2 · code</span>在獨立 worktree 編輯</div><div class="arrow">→</div>
+    <div class="step gate"><span class="s">3 · commit</span>test-drift · arch · types · spec-sync</div><div class="arrow">→</div>
+    <div class="step gate"><span class="s">4 · push / PR</span>完整 CI checks</div>
+  </div>
+  <div class="flow" style="margin-top:.6rem">
+    <div class="step gate"><span class="s">5 · merge</span>main 上的 checks</div><div class="arrow">→</div>
+    <div class="step ok"><span class="s">6 · build</span>checks 綠才建 image</div><div class="arrow">→</div>
+    <div class="step ok"><span class="s">7 · deploy</span>flux · 不可變 ref</div><div class="arrow">→</div>
+    <div class="step ok"><span class="s">8 · verify</span>running==intended + smoke</div>
+  </div>
+  <p class="lead" style="margin-top:1.5rem">注意這個形狀:<b>同一批規則</b>(spec-first、test-drift、arch)在編輯時、commit 時、CI 裡各查一次。刻意重複 —— 每一層都是上一層的安全網。</p>
+</section>
+
+<!-- 17 WAR STORIES -->
+<section class="slide">
+  <div class="eyebrow">每條規則都有來由</div>
+  <h2>規則 ← <span class="accent">真實事故</span></h2>
+  <table>
+    <tr><th>發生了什麼</th><th>它催生的規則</th></tr>
+    <tr><td>兩個 session 共用一棵樹;一個的 <code>git checkout</code> 把另一個的工作打散。</td><td><b>每 session 一 worktree</b> guard + launcher。</td></tr>
+    <tr><td>紅測試 gate 下 image 照建照出貨;prod 跑了 CI 沒過的 code。</td><td><b>image build 接在 <code>workflow_run</code>(checks 成功)之後。</b></td></tr>
+    <tr><td>一個 endpoint 在 prod 500,因為觀測 wrapper 在某路由崩潰 —— 單元測試因 wrapper 關閉而通過。</td><td>用與 prod 完全相同的 middleware 堆疊;測真實的 ASGI 介面。</td></tr>
+    <tr><td>行為變更帶著舊測試出貨;套件仍全綠。</td><td><b>test-drift</b> gate。</td></tr>
+    <tr><td>一份密集帳單重新解析,逐一觸發所有 pipeline 大小上限 —— 一個檔 8 個 commit。</td><td>每個 stage 都以最壞情況設容量;寫一則 <b>lesson</b> 讓下一次只要 1 個 commit。</td></tr>
+  </table>
+  <p class="lead" style="margin-top:1.1rem">這才是重點:別在前期把治理設計完 —— <b>讓每次事故硬化成一個 gate 或一則 lesson。</b> harness 就是它們長出牙齒的地方。</p>
+</section>
+
+<!-- 18 APPLY -->
+<section class="slide">
+  <div class="eyebrow">套到你的專案</div>
+  <h2>已經打包好 —— <span class="accent">一行指令</span></h2>
+  <p class="sub">通用層抽成 <code>claude-control-kit</code>(一個 repo)+ 一個 <code>/scaffold-controls</code> skill。把 harness 裝進任何 repo;屬於你的部分自己填。</p>
+  <div class="cols">
+    <div>
+      <pre><span class="c"># base harness(任何語言)</span>
+$ bash claude-control-kit/install.sh
+  <span class="k">✓</span> worktree guards + launcher
+  <span class="k">✓</span> commit/push gate runner(.dev/gates/*)
+  <span class="k">✓</span> .dev/ 骨架(adr/lessons/tasks/gates)
+  <span class="k">✓</span> CLAUDE.md + CI + settings 模板
+  <span class="c"># idempotent · 絕不覆蓋既有檔</span>
+
+<span class="c"># + 完整 Python/DDD 規則集當 profile</span>
+$ bash install.sh <span class="b">--profile python-ddd</span>
+  <span class="k">✓</span> ruff · mypy · <b>22 條架構 lint</b>
+  <span class="k">✓</span> spec-sync · test-drift · spec-first hook</pre>
+    </div>
+    <div>
+      <div class="card">
+        <h3>通用 vs 你的 —— 這條界線</h3>
+        <div class="t" style="margin-top:.4rem"><b>開箱即用:</b>worktree 隔離、gate <em>接線</em>、<code>.dev/</code> 紀律、CI 部署 gate 模式。</div>
+        <div class="t" style="margin-top:.5rem"><b>你來填:</b>實際的 gate —— 把可執行腳本丟進 <code>.dev/gates/</code>(你的 lint、types、test-drift 地圖、arch 規則)。runner 語言無關;<em>你強制什麼</em>是你的事。</div>
+      </div>
+      <div class="card" style="margin-top:.9rem">
+        <div class="t"><b>已驗證:</b>arch linter 重新參數化後,重現參考專案自己的結果 —— 並在<em>不同</em> package 上擋下一個真實的分層違規。kit 自我測試 6/6。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 HONEST -->
+<section class="slide">
+  <div class="eyebrow">誠實面對它</div>
+  <h2>這套 harness <span class="accent">實際強制什麼</span></h2>
+  <p class="sub">三層 —— 分清楚哪個是哪個,才是設定期待、而非驚喜。</p>
+  <div class="cols3">
+    <div class="card" style="border-left:3px solid var(--sage);padding-left:1rem">
+      <span class="pill auto">自動 · 開箱即用</span>
+      <h3 style="margin-top:.6rem">並行安全</h3>
+      <div class="t">多 session 的 <code>git checkout/stash/reset</code> 在有 co-tenant 時硬擋。零設定;單人 session 休眠。</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--oxblood);padding-left:1rem">
+      <span class="pill block">opt-in · 你來填</span>
+      <h3 style="margin-top:.6rem">commit/push gate</h3>
+      <div class="t">runner 接好了但<b>空的</b>,直到你把 gate 放進 <code>.dev/gates/</code>。之後 lint/type/arch/test-drift 硬擋 —— 人與 agent 都擋。</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--brass);padding-left:1rem">
+      <span class="pill warn">advisory</span>
+      <h3 style="margin-top:.6rem">提醒 + 慣例</h3>
+      <div class="t">push-to-main 警告、co-tenant 編輯警告,以及 <code>.dev/</code> 方法論 + CLAUDE.md —— 靠慣例 + review 強制,不是阻擋。</div>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:1.4rem">kit 給你的是<b>治理框架 + 一個並行安全網</b>,不是一套罐頭規則。規則該是你的;harness 讓它們長出牙齒。</p>
+</section>
+
+<!-- 20 CHECKLIST -->
+<section class="slide">
+  <div class="eyebrow">開始上手</div>
+  <h2>採用檢查清單</h2>
+  <ol style="font-size:1.02rem;line-height:1.95;max-width:64ch;margin-top:.4rem">
+    <li>在你的 repo 跑 <code>install.sh</code>(合適的話加 <code>--profile python-ddd</code>)。<span class="muted">冪等、非破壞。</span></li>
+    <li><b>啟用 git hooks:</b> <code>git config core.hooksPath .githooks</code>。把 hooks 區塊 merge 進 <code>.claude/settings.json</code>。</li>
+    <li><b>填 <code>.dev/gates/</code></b> 你真正的 lint / typecheck / test-drift / arch gate。確認每個在故意違規時擋、修好後放行。</li>
+    <li><b>從模板寫你的 CLAUDE.md</b> —— stack、慣例,並開一個 ADR 索引(<code>ADR-000</code> 是模板)。</li>
+    <li><b>接 CI:</b>一個 <code>checks</code> workflow;若你 push 就部署,採用 <code>workflow_run</code> 部署 gate 讓紅 gate 擋住交付。</li>
+    <li><b>加 <code>cw</code> launcher</b> 到你的 shell rc;用它開 session,每個都拿到獨立 worktree。</li>
+    <li><b>然後讓它長:</b>每次事故 → 一個新 gate 或一則 lesson。系統會自我硬化。</li>
+  </ol>
+</section>
+
+<!-- 21 PRINCIPLES -->
+<section class="slide">
+  <div class="eyebrow">重點帶走</div>
+  <h2>七條可移植<span class="accent">原則</span></h2>
+  <ul class="two-list" style="font-size:1rem;margin-top:.5rem">
+    <li><b>源頭放進 repo</b> —— 決策、行為、lessons、工作狀態。版本控制、可 grep、在程式碼旁。</li>
+    <li><b>給 agent 一本操作手冊</b> —— 它必須遵守的指令,而非它可能會讀的散文。</li>
+    <li><b>spec-first</b> —— 設計在寫程式前先 review,再用 checker 讓兩者不漂移。</li>
+    <li><b>enforcement 左移</b> —— 在 edit/commit/push 就擋,不只在 PR。刻意多層冗餘。</li>
+    <li><b>每個行為變更都帶測試</b> —— 沒有默默的 test drift。</li>
+    <li><b>CI 綠必須擋住部署</b> —— build 接在 gate 之後,而非 push 之後。</li>
+    <li><b>隔離並行</b> —— 每 session 一 worktree;並讓每次事故硬化成 gate 或 lesson。</li>
+  </ul>
+</section>
+
+<!-- 22 CLOSING -->
+<section class="slide">
+  <div class="title-wrap">
+    <div class="eyebrow">拿去用</div>
+    <h2 style="font-size:clamp(1.9rem,4.4vw,3.2rem);max-width:24ch">目標不是規則。是讓系統 —— 以及觸碰它的 agent 數量 —— 成長時仍<span class="accent">保持一致</span>。</h2>
+    <div class="divider" style="margin:2rem 0"></div>
+    <div class="cols3">
+      <div class="card"><h3>Repo</h3><div class="t"><code>claude-control-kit</code> —— install.sh、kit/、python-ddd profile、自我測試。</div></div>
+      <div class="card"><h3>Skill</h3><div class="t"><code>/scaffold-controls</code> —— 在任何專案裝好 harness + 做判斷性步驟。</div></div>
+      <div class="card"><h3>參考</h3><div class="t">MyWB / Warren —— 75 ADR、22 架構規則,整套 harness 在 production 運行。</div></div>
+    </div>
+    <p class="lead" style="margin-top:1.6rem">從並行 guard + 一個 gate 開始。其餘的,讓你自己的事故教你該強制什麼,再逐步加上。</p>
+  </div>
+</section>
+
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="hint">← → · 空白 · <kbd>f</kbd> 全螢幕</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let i=0;
+  const foot=(n)=>`<span>MyWB 工程實務手冊 · 治理 AI 協作開發</span><span><span class="brand">${String(n+1).padStart(2,'0')}</span> / ${slides.length}</span>`;
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    document.getElementById('progress').style.width=((i+1)/slides.length*100)+'%';
+    let f=slides[i].querySelector('.foot');
+    if(!f){f=document.createElement('div');f.className='foot';slides[i].appendChild(f);}
+    f.innerHTML=foot(i);
+    location.hash=i+1;
+  }
+  function go(d){show(i+d);}
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(-1);}
+    else if(e.key==='Home'){show(0);} else if(e.key==='End'){show(slides.length-1);}
+    else if(e.key==='f'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+  });
+  document.getElementById('deck').addEventListener('click',e=>{
+    if(e.target.closest('a,code,pre'))return;
+    go(e.clientX < window.innerWidth*0.28 ? -1 : 1);
+  });
+  const h=parseInt(location.hash.slice(1)); show(Number.isFinite(h)&&h>0?h-1:0);
+</script>
+</body>
+</html>
