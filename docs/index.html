@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyWB 工程實務手冊 — 簡報集</title>
+<style>
+  :root{
+    --bg:#0b0a08; --panel:#151310; --ink:#efe9dd; --muted:#a89f8d;
+    --brass:#c9a24a; --brass-soft:#e6c877; --sage:#5e9e7e; --oxblood:#c26a5c; --line:#2a251d;
+    --serif:"Newsreader","Songti TC","Noto Serif CJK TC",Georgia,serif;
+    --ui:-apple-system,BlinkMacSystemFont,"PingFang TC","Heiti TC","Microsoft JhengHei","Segoe UI",Roboto,sans-serif;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:
+      radial-gradient(1200px 600px at 80% -10%,rgba(201,162,74,.10),transparent 60%),
+      var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;
+      min-height:100vh;font-feature-settings:"tnum"}
+  .wrap{max-width:1080px;margin:0 auto;padding:10vh 6vw 8vh}
+  .eyebrow{text-transform:uppercase;letter-spacing:.2em;font-size:.74rem;color:var(--brass);font-weight:700;margin-bottom:1rem}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(2.2rem,5vw,3.6rem);line-height:1.12;color:#fff;margin:0;max-width:20ch}
+  .lede{color:var(--muted);font-size:1.15rem;line-height:1.7;max-width:56ch;margin:1.4rem 0 .4rem}
+  .stats{display:flex;gap:2.4rem;flex-wrap:wrap;margin:2rem 0 3rem}
+  .stat .n{font-family:var(--serif);font-size:2.2rem;color:var(--brass-soft);line-height:1}
+  .stat .l{font-size:.74rem;color:var(--muted);letter-spacing:.06em;margin-top:.3rem}
+  .decks{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}
+  a.deck{display:block;text-decoration:none;color:inherit;background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;padding:1.5rem 1.6rem;transition:border-color .18s, transform .18s, background .18s}
+  a.deck:hover{border-color:var(--brass);transform:translateY(-2px);background:#191510}
+  a.deck.wide{grid-column:1 / -1}
+  .klabel{font-family:var(--mono);font-size:.72rem;color:var(--brass);letter-spacing:.04em}
+  a.deck h2{font-family:var(--serif);font-weight:600;font-size:1.5rem;color:#fff;margin:.5rem 0 .5rem}
+  a.deck p{color:var(--muted);font-size:.95rem;line-height:1.65;margin:0}
+  a.deck .go{color:var(--brass-soft);font-size:.85rem;margin-top:.9rem;display:inline-block}
+  .lang{display:inline-block;font-size:.7rem;font-family:var(--mono);border:1px solid var(--line);border-radius:6px;
+    padding:.1em .5em;color:var(--brass-soft);background:#000;margin-left:.5rem;vertical-align:middle}
+  .repo{margin-top:2.6rem;padding-top:1.6rem;border-top:1px solid var(--line);display:flex;gap:2rem;flex-wrap:wrap;
+    color:var(--muted);font-size:.9rem;line-height:1.7}
+  .repo code{font-family:var(--mono);background:#000;border:1px solid var(--line);border-radius:5px;padding:.08em .45em;color:var(--brass-soft);font-size:.86em}
+  .foot{margin-top:2.4rem;color:#6b6456;font-size:.78rem;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">MyWB / Warren · 工程實務</div>
+  <h1>治理 <span style="color:var(--brass-soft)">AI 協作</span>開發</h1>
+  <p class="lede">一套讓人與 coding agent 長期保持一致的做法 —— 源頭進 repo、給 agent 操作手冊、把 enforcement 左移、隔離並行 —— 以及讓你套用到自己專案的可重用 harness。</p>
+  <div class="stats">
+    <div class="stat"><div class="n">75</div><div class="l">ADR 決策</div></div>
+    <div class="stat"><div class="n">22</div><div class="l">架構規則</div></div>
+    <div class="stat"><div class="n">2,700+</div><div class="l">後端測試</div></div>
+    <div class="stat"><div class="n">34</div><div class="l">lessons</div></div>
+    <div class="stat"><div class="n">4+1</div><div class="l">gate 層級</div></div>
+  </div>
+
+  <div class="decks">
+    <a class="deck wide" href="mywb-engineering-playbook.zh.html">
+      <span class="klabel">01 · 全貌 / 為什麼</span><span class="lang">繁中</span>
+      <h2>工程實務手冊</h2>
+      <p>從問題到解法的完整敘事:四個核心動作、<code style="font-family:var(--mono)">.dev/</code> 四源頭、CLAUDE.md、enforcement harness、CI→部署閘門、worktree 隔離,結尾是採用 checklist 與七條原則。適合先看、給全團隊或決策者。</p>
+      <span class="go">開始閱讀 →</span>
+    </a>
+
+    <a class="deck" href="mywb-engineering-internals.zh.html">
+      <span class="klabel">02 · 實作細節 / 怎麼做</span><span class="lang">繁中</span>
+      <h2>實作細節篇</h2>
+      <p>下潛一層,拆解每個檔案:CLAUDE.md 結構、ADR/spec 格式、每支 hook 與 gate script(真實原始碼)、validate_arch 的 22 條、CI 的 workflow_run 部署 gate。給要實作與維護的工程師。</p>
+      <span class="go">深入內部 →</span>
+    </a>
+
+    <a class="deck" href="mywb-engineering-playbook.html">
+      <span class="klabel">01 · Overview / Why</span><span class="lang">EN</span>
+      <h2>Engineering Playbook</h2>
+      <p>The same overview deck in English — sources of truth, CLAUDE.md, the enforcement harness, spec-first, the CI→deploy gate, worktree isolation, an adoption checklist and seven principles. Share with non-Chinese teammates.</p>
+      <span class="go">Read the deck →</span>
+    </a>
+  </div>
+
+  <div class="repo">
+    <div><b style="color:#fff">拿去用</b><br>Repo:<code>claude-control-kit</code> — <code>install.sh</code>、<code>kit/</code>、<code>profiles/python-ddd/</code>、自我測試。</div>
+    <div><b style="color:#fff">一鍵安裝</b><br><code>bash install.sh [--profile python-ddd]</code>,或在任何專案裡 <code>/scaffold-controls</code>。</div>
+  </div>
+  <div class="foot">參考範例:MyWB / Warren — 整套 harness 在 production 運行。 · 導覽:← → · 空白 · <b>f</b> 全螢幕(於各簡報內)</div>
+</div>
+</body>
+</html>
