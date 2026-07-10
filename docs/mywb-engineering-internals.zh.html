@@ -637,6 +637,67 @@ jobs:
   </div>
 </section>
 
+<!-- 18b SECURITY SCANS -->
+<section class="slide">
+  <div class="eyebrow">CI · security.yml 的設計</div>
+  <h2>5 道掃描,各有<span class="accent">明確 gate policy</span></h2>
+  <div class="cols5545">
+    <table>
+      <tr><th>job</th><th>工具</th><th>policy</th></tr>
+      <tr><td><code>secret-scan</code></td><td>gitleaks</td><td><span class="pill block">任何祕密 → BLOCK</span></td></tr>
+      <tr><td><code>deps-python</code></td><td>pip-audit</td><td>只 <b>CISA KEV</b> BLOCK,餘 warn</td></tr>
+      <tr><td><code>deps-web</code></td><td>npm audit</td><td>GHSA→CVE(OSV)→KEV BLOCK</td></tr>
+      <tr><td><code>sast-python</code></td><td>bandit</td><td><span class="pill warn">WARN(報告)</span></td></tr>
+      <tr><td><code>image-scan</code></td><td>trivy</td><td>可修 CRITICAL BLOCK;HIGH/不可修 warn</td></tr>
+    </table>
+    <div class="card">
+      <h3>設計取捨</h3>
+      <div class="t" style="margin-top:.35rem">
+        <b>KEV-gating</b>:<code>kev_gate.py</code> 只在 CVE 出現在 CISA「實際被利用」清單時擋 —— 否則每次依賴更新都被無數低危 CVE 卡死。
+        <div class="divider"></div>
+        <b>fail-open + 告警</b>:KEV feed 掛掉時放行(deps 已 lock),但推 Telegram 讓 outage 可見,不是默默略過。
+        <div class="divider"></div>
+        <b>trivy <code>--ignore-unfixed</code></b>:base image 的 will_not_fix CVE 沒有升級路徑,擋它只會卡死每次 merge → 只擋<em>有 FixedVersion</em> 的。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 18c VAULT MECHANICS -->
+<section class="slide">
+  <div class="eyebrow">機密 · 實作機制</div>
+  <h2>Vault:<span class="accent">三個層次</span>的祕密處理</h2>
+  <div class="cols">
+    <pre><span class="c"># 1) 資料加密 — password_vault(ADR-008)</span>
+class <b>FernetPasswordVault</b>:
+  @classmethod
+  def <b>from_env</b>(cls):        <span class="c"># 只從 env,禁 .env/arg</span>
+    kek = os.environ["MYWB_PASSWORD_VAULT_KEK"]
+    return cls(kek)
+  def encrypt(self, plain: <span class="b">SecretStr</span>) -&gt; str: ...
+<span class="c"># 明文全程包 SecretStr → 意外 log 也不外洩</span>
+
+<span class="c"># 2) GitOps 祕密 — SOPS + age(ADR-037)</span>
+<span class="c"># secret manifest 加密後進 git;Flux 叢內解密</span>
+sops --encrypt --age $AGE_PK secret.yaml &gt; enc.yaml
+<span class="c"># 跨機共用同一把 age key → KEK 各機一致</span></pre>
+    <div>
+      <div class="card">
+        <h3>3) 祕密不進 agent pod(ADR-024/066)</h3>
+        <div class="t" style="margin-top:.35rem">
+          runtime pod 是 <b>Google-blind / KEK-blind</b>:
+          <div class="divider"></div>
+          資料 tool 不在 pod 內碰祕密 —— 而是帶一個 <b>per-session 短命 token</b> 打 HTTP callback 回 api 的 <code>/internal/*</code>;<b>api 才持 KEK + DB host</b>,跑既有 UC 的 per-request-secret 紀律。
+          <div class="divider"></div>
+          與 einvoice-scraper 同模式(憑證每次請求傳,pod 本身不留)。
+          <div class="divider"></div>
+          <b>信任邊界</b> = 拿 fubon 憑證的 broker-gateway 那條線,不擴大。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- 19 ADD YOUR GATE -->
 <section class="slide">
   <div class="eyebrow">實作 · 加你自己的 gate</div>

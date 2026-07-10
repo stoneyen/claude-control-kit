@@ -412,6 +412,71 @@ $ git checkout main
   </div>
 </section>
 
+<!-- 15b TEST LAYERS -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · 驗證的層次</div>
+  <h2>六種測試,各<span class="accent">抓不同的失效</span></h2>
+  <p class="sub">不是「有測試就好」,而是每一層攔一種不同的問題 —— 由快而慢、由窄而寬。</p>
+  <table>
+    <tr><th>層</th><th>抓什麼</th><th>何時跑</th></tr>
+    <tr><td><b>unit</b></td><td>領域邏輯 / value object / invariants(含 Hypothesis property)</td><td>commit · CI</td></tr>
+    <tr><td><b>integration</b></td><td>UC + repo + adapter 串起來 —— 用記憶體 <code>sqlite</code>,免 sidecar</td><td>CI</td></tr>
+    <tr><td><b>fuzz</b>(schemathesis)</td><td>每個 GET endpoint 對亂數輸入不 5xx</td><td>CI(in-process)· 部署後(對真 stack)</td></tr>
+    <tr><td><b>e2e</b>(Playwright · 6 specs)</td><td>SPA 端到端流程(testid 斷言,不綁死值)</td><td>CI · 部署後 smoke</td></tr>
+    <tr><td><b>web-perf</b>(Lighthouse)</td><td>效能預算 —— 大 dep 進入口 chunk 就紅</td><td>CI(advisory)</td></tr>
+    <tr><td><b>smoke</b>(post-deploy)</td><td>對<b>線上 pod</b> 真 cookie 認證 + schema-fuzz 抓 5xx</td><td>部署後,自動</td></tr>
+  </table>
+  <p class="lead" style="margin-top:1rem">關鍵:<b>測試都跑無外部服務的記憶體 sqlite</b> → 快、穩、可平行;真 stack 的驗證留給部署後 smoke。</p>
+</section>
+
+<!-- 15c REVIEW + SCAN -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · code review + code scan</div>
+  <h2>人看不到的,交給<span class="accent">機器與多模型</span></h2>
+  <div class="cols">
+    <div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">異質 LLM code review</h3>
+      <ul>
+        <li><code>/multi-review</code> —— 把 <code>git diff main...HEAD</code> 同時丟給 <b>三家</b>(Claude · Gemini CLI · Codex CLI)並行 review,再綜合成跨模型一致度報告。單一模型的盲點,另兩家常補到。</li>
+        <li><b>strict-review 觸發</b>:diff 動到 aggregate/UC/router/migration/ADR 時,自動建議先跑 review 才開 PR。</li>
+        <li><code>/security-review</code> —— 對變更做專門的安全審查。</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">5 道 code scan(<code>security.yml</code>)</h3>
+      <table>
+        <tr><th>掃描</th><th>gate</th></tr>
+        <tr><td>gitleaks(祕密外洩)</td><td><span class="pill block">BLOCK 任何祕密</span></td></tr>
+        <tr><td>pip-audit / npm audit(依賴 CVE)</td><td><span class="pill block">只擋 CISA KEV</span> 其餘 warn</td></tr>
+        <tr><td>bandit(Python SAST)</td><td><span class="pill warn">WARN</span></td></tr>
+        <tr><td>trivy(image 弱點)</td><td><span class="pill block">可修的 CRITICAL 才擋</span></td></tr>
+      </table>
+      <p class="lead" style="margin-top:.6rem;font-size:.9rem"><b>KEV-gating 的巧思:</b>只在「實際被利用中」的 CVE 擋,其餘警告 —— 不讓弱點 noise 卡死每次 merge。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 15d VAULT -->
+<section class="slide">
+  <div class="eyebrow">DevOps · 機密設計(Vault)</div>
+  <h2>祕密:一把 KEK、<span class="accent">不進該進的 pod</span>、進 git 也加密</h2>
+  <div class="cols3">
+    <div class="card">
+      <h3>① 一把 KEK 加密資料</h3>
+      <div class="t">Fernet 對稱加密,單一 KEK(base64 32-byte)。KEK 從 k8s Secret 經 <code>envFrom</code> 注入成 <code>MYWB_PASSWORD_VAULT_KEK</code> —— <b>禁止從 .env / cmdline 讀</b>。明文一律包 <code>SecretStr</code> 防誤 log。</div>
+    </div>
+    <div class="card">
+      <h3>② 祕密不進 agent pod</h3>
+      <div class="t">Warren runtime pod <b>看不到</b> KEK/OAuth/broker 憑證。資料操作走 <b>per-session 短命 token</b> callback 回 api(api 才持 KEK + DB)。einvoice-scraper 同理:Google-blind,憑證每次請求傳。</div>
+    </div>
+    <div class="card">
+      <h3>③ GitOps 祕密加密在 git</h3>
+      <div class="t"><b>SOPS + age</b> 把 secret manifest 加密後<em>放進 git</em>(可版本控制、跨機同一把 KEK);Flux 用 age key 於叢內解密。祕密不再散落 out-of-band。</div>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:1.2rem"><b>身分:</b>Google OAuth 登入 + server 發的 session cookie(DB 只存 token 的 SHA-256);<code>X-User-Id</code> header 僅 dev fallback,<b>prod 關閉</b>(否則公開 funnel 上任何人可冒充)。</p>
+</section>
+
 <!-- 16 FULL LOOP -->
 <section class="slide">
   <div class="eyebrow">整體如何串起來</div>
