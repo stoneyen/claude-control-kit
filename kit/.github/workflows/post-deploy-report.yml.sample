@@ -26,6 +26,12 @@ concurrency:
 jobs:
   report:
     runs-on: [self-hosted, Linux, ARM64]
+    # Run in a container that ships python3 + git + curl (the bare self-hosted
+    # runner has no python3). buildpack-deps-based python:3.13-bookworm bundles
+    # curl + git, so the generator's curl fallback to the GitHub API works with
+    # no `gh` install.
+    container:
+      image: python:3.13-bookworm
     # github.com only (Forgejo also reads .github/workflows); manual dispatch
     # always allowed; automated runs ONLY when the checks gate went green.
     if: >
@@ -40,6 +46,7 @@ jobs:
       - name: generate + commit release report
         run: |
           set -eu
+          git config --global --add safe.directory '*'
           rm -rf src   # the runner reuses the workdir between runs
           git clone "https://x-access-token:${GH_TOKEN}@github.com/<OWNER>/<REPO>.git" src
           cd src

@@ -25,7 +25,9 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -51,9 +53,23 @@ def _git(*args: str) -> str:
 
 
 def _gh_json(path: str):
-    """Call `gh api <path>` and return parsed JSON, or None if gh is
-    unavailable / unauthenticated / errored (degraded mode)."""
-    rc, out = _run(["gh", "api", "-H", "Accept: application/vnd.github+json", path])
+    """Fetch `GET /<path>` from the GitHub API as parsed JSON, or None on any
+    failure (degraded mode). Uses `gh api` when the CLI is present (laptop), else
+    falls back to `curl` with GH_TOKEN/GITHUB_TOKEN (CI containers ship curl but
+    not gh — keeps the generator dependency-light + portable)."""
+    if shutil.which("gh"):
+        rc, out = _run(["gh", "api", "-H", "Accept: application/vnd.github+json", path])
+    else:
+        token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+        if not (token and shutil.which("curl")):
+            return None
+        rc, out = _run([
+            "curl", "-fsSL",
+            "-H", "Accept: application/vnd.github+json",
+            "-H", f"Authorization: Bearer {token}",
+            "-H", "X-GitHub-Api-Version: 2022-11-28",
+            f"https://api.github.com/{path.lstrip('/')}",
+        ])
     if rc != 0 or not out.strip():
         return None
     try:
@@ -231,7 +247,8 @@ def render_html(sha: str, repo: str | None, generated_at: str, require_actions: 
         # fails loud on a missing dependency).
         raise SystemExit(
             f"release-report: --require-actions set but Actions data unavailable "
-            f"({actions.get('reason', 'unknown')}). Ensure gh is installed + GH_TOKEN is set."
+            f"({actions.get('reason', 'unknown')}). Ensure `gh` (or curl + GH_TOKEN) "
+            f"can reach the GitHub API and --repo is set."
         )
 
     # overall roll-up
