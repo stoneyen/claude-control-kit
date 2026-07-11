@@ -63,6 +63,20 @@ jobs:
           # actually short-circuits (idempotent; no timestamp-churn re-commit).
           STAMP="$(git show -s --format=%cI "$SHA")"
 
+          # Surface the report link in this run's Summary tab (the deploy's final
+          # summary in the Actions UI). Called on both success paths below.
+          summary() {
+            local url="https://github.com/<OWNER>/<REPO>/blob/main/deploy/reports/${SHA}.html"
+            {
+              echo "## 📄 Release report — \`${SHA:0:8}\`"
+              echo ""
+              echo "- **Report:** [deploy/reports/${SHA:0:8}.html](${url})"
+              echo "- **All reports:** [index](https://github.com/<OWNER>/<REPO>/blob/main/deploy/reports/index.html)"
+              echo ""
+              echo "_mywb is private → GitHub shows the HTML source; open the file locally for the rendered page (ADR-077)._"
+            } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+          }
+
           # Generate + push, retrying against concurrent bot/Flux pushes. Each
           # attempt starts from a CLEAN origin/main tip (reset --hard, no dirty
           # tree) then generates once — the report only needs --sha, not the tree
@@ -79,10 +93,10 @@ jobs:
               --sha "$SHA" --repo <OWNER>/<REPO> --generated-at "$STAMP" --require-actions
             git add deploy/reports
             if git diff --cached --quiet; then
-              echo "release report unchanged — nothing to commit"; exit 0
+              echo "release report unchanged — nothing to commit"; summary; exit 0
             fi
             git commit -m "chore(release-report): summary for ${SHA:0:8} [skip ci]"
-            if git push origin main; then echo "pushed"; exit 0; fi
+            if git push origin main; then echo "pushed"; summary; exit 0; fi
             echo "push rejected (attempt $i) — retrying from fresh main"
           done
           echo "giving up after 3 attempts"; exit 1
