@@ -19,7 +19,10 @@ on:
         description: "commit SHA to (re)generate a report for"
         required: false
 permissions:
-  contents: write
+  contents: write   # push the report commit back to main
+  actions: read     # read this SHA's workflow-run results (the report's CI data);
+                    # NOTE: naming any permission defaults all others to `none`,
+                    # so actions:read MUST be listed or the API returns 403.
 concurrency:
   group: post-deploy-report
   cancel-in-progress: false
@@ -44,6 +47,7 @@ jobs:
       INPUT_SHA: ${{ github.event.inputs.sha }}
     steps:
       - name: generate + commit release report
+        shell: bash   # the container defaults to `sh`; the script uses ${SHA:0:8}
         run: |
           set -eu
           git config --global --add safe.directory '*'
