@@ -134,8 +134,6 @@ def collect_commit(sha: str) -> dict:
     return {"sha": sha, "short": sha[:8], "subject": subject, "author": author, "date": date, "verdict": verdict}
 
 
-# Map each workflow (by name) to the report bucket it feeds.
-_CI_WORKFLOWS = {"checks", "backend image", "web image", "release"}
 _SCAN_WORKFLOW = "security"
 
 
@@ -223,10 +221,18 @@ def _section_jobs(actions: dict, workflow_names: set[str], title: str, empty_not
     )
 
 
-def render_html(sha: str, repo: str | None, generated_at: str) -> str:
+def render_html(sha: str, repo: str | None, generated_at: str, require_actions: bool = False) -> str:
     inv = collect_inventory()
     commit = collect_commit(sha)
     actions = collect_actions(repo, sha)
+    if require_actions and not actions.get("available"):
+        # Fail loud rather than ship an inventory-only page from a CI run whose
+        # `gh` is missing/unauthenticated (repo convention: adapter selection
+        # fails loud on a missing dependency).
+        raise SystemExit(
+            f"release-report: --require-actions set but Actions data unavailable "
+            f"({actions.get('reason', 'unknown')}). Ensure gh is installed + GH_TOKEN is set."
+        )
 
     # overall roll-up
     overall = "unknown"
@@ -382,6 +388,7 @@ def main() -> int:
     ap.add_argument("--repo", default=None, help="owner/name for GitHub Actions lookup")
     ap.add_argument("--out-dir", default="deploy/reports")
     ap.add_argument("--generated-at", default=None, help="ISO timestamp (CI passes one; default now)")
+    ap.add_argument("--require-actions", action="store_true", help="fail if the GitHub Actions API is unavailable (CI use — don't ship a degraded page)")
     a = ap.parse_args()
 
     sha = _git("rev-parse", a.sha) or a.sha
@@ -397,7 +404,7 @@ def main() -> int:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     generated_at = a.generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    (out_dir / f"{sha}.html").write_text(render_html(sha, a.repo, generated_at), encoding="utf-8")
+    (out_dir / f"{sha}.html").write_text(render_html(sha, a.repo, generated_at, a.require_actions), encoding="utf-8")
     _rebuild_index(out_dir)
     print(str(out_dir / f"{sha}.html"))
     return 0

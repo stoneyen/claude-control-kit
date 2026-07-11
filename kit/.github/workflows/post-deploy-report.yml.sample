@@ -44,31 +44,34 @@ jobs:
           git clone "https://x-access-token:${GH_TOKEN}@github.com/<OWNER>/<REPO>.git" src
           cd src
           SHA="${INPUT_SHA:-${TRIGGER_SHA:-$GITHUB_SHA}}"
-          git checkout "$SHA"
-
-          # Generate against the working tree at $SHA (inventory) + the Actions
-          # API for $SHA (CI/scan/review). gh auto-auths via GH_TOKEN.
-          python3 deploy/scripts/gen_release_report.py generate \
-            --sha "$SHA" --repo <OWNER>/<REPO>
-
-          # Commit the report onto main (fast-forward; [skip ci] prevents the
-          # push from re-triggering checks → no workflow_run loop).
           git config user.name  "mywb-release-bot"
           git config user.email "release-bot@mywb.local"
-          git fetch origin main
-          git checkout -B main origin/main
-          # regenerate onto the fresh main tip so the file is present after the checkout
-          python3 deploy/scripts/gen_release_report.py generate \
-            --sha "$SHA" --repo <OWNER>/<REPO>
-          git add deploy/reports
-          if git diff --cached --quiet; then
-            echo "release report unchanged — nothing to commit"
-            exit 0
-          fi
-          git commit -m "chore(release-report): summary for ${SHA:0:8} [skip ci]"
-          # rebase-and-retry against concurrent bot pushes
+
+          # Stable timestamp keyed on the reported commit so re-runs for the same
+          # SHA produce byte-identical output → the "nothing to commit" guard
+          # actually short-circuits (idempotent; no timestamp-churn re-commit).
+          STAMP="$(git show -s --format=%cI "$SHA")"
+
+          # Generate + push, retrying against concurrent bot/Flux pushes. Each
+          # attempt starts from a CLEAN origin/main tip (reset --hard, no dirty
+          # tree) then generates once — the report only needs --sha, not the tree
+          # parked at the code commit. This fixes the "checkout -B main aborts
+          # when main is ahead of SHA" abort and needs no rebase (deterministic
+          # content → no conflicts). [skip ci] keeps checks from re-firing.
           for i in 1 2 3; do
-            if git push origin main; then echo "pushed"; break; fi
-            echo "push rejected (attempt $i) — rebasing"; git fetch origin main; git rebase origin/main || true
-            [ "$i" = 3 ] && { echo "giving up after 3 attempts"; exit 1; }
+            git fetch origin main
+            git checkout -B main origin/main
+            git reset --hard origin/main
+            # --require-actions: fail loud if the Actions API is unreachable, so
+            # a degraded (gh-less) CI run can't silently ship an inventory-only page.
+            python3 deploy/scripts/gen_release_report.py generate \
+              --sha "$SHA" --repo <OWNER>/<REPO> --generated-at "$STAMP" --require-actions
+            git add deploy/reports
+            if git diff --cached --quiet; then
+              echo "release report unchanged — nothing to commit"; exit 0
+            fi
+            git commit -m "chore(release-report): summary for ${SHA:0:8} [skip ci]"
+            if git push origin main; then echo "pushed"; exit 0; fi
+            echo "push rejected (attempt $i) — retrying from fresh main"
           done
+          echo "giving up after 3 attempts"; exit 1
