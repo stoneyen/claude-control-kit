@@ -413,6 +413,74 @@ Use an isolated worktree:
   </div>
 </section>
 
+<!-- 15b TEST LAYERS -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · layers of verification</div>
+  <h2>Six kinds of test, each <span class="accent">catching a different failure</span></h2>
+  <p class="sub">Not "we have tests" — every layer intercepts a distinct class of problem, fast-to-slow, narrow-to-broad.</p>
+  <table>
+    <tr><th>Layer</th><th>What it catches</th><th>When</th></tr>
+    <tr><td><b>unit</b></td><td>domain logic / value objects / invariants (incl. Hypothesis properties)</td><td>commit · CI</td></tr>
+    <tr><td><b>integration</b></td><td>UC + repo + adapter wired together — in-memory <code>sqlite</code>, no sidecar</td><td>CI</td></tr>
+    <tr><td><b>fuzz</b> (schemathesis)</td><td>every GET endpoint stays 5xx-free on random input</td><td>CI (in-process) · post-deploy (against the real stack)</td></tr>
+    <tr><td><b>e2e</b> (Playwright · 6 specs)</td><td>SPA end-to-end flows (testid assertions, not hard-coded values)</td><td>CI · post-deploy smoke</td></tr>
+    <tr><td><b>web-perf</b> (Lighthouse)</td><td>performance budget — a big dep in the entry chunk goes red</td><td>CI (advisory)</td></tr>
+    <tr><td><b>smoke</b> (post-deploy)</td><td>real cookie auth + schema-fuzz for 5xx against the <b>live pod</b></td><td>after deploy, automatic</td></tr>
+  </table>
+  <p class="lead" style="margin-top:.9rem">The key: <b>tests run on in-memory sqlite with no external service</b> → fast, stable, parallelisable; real-stack verification is left to post-deploy smoke.</p>
+  <p class="lead" style="margin-top:.5rem;font-size:.9rem;color:var(--muted)"><b style="color:var(--brass-soft)">What test-drift binds:</b> the first 4 rows (<b>unit · integration · fuzz · e2e</b>, plus frontend vitest <code>*.test.tsx</code>) have a source↔test mapping and are <b>required to change together</b>; <b>web-perf (Lighthouse) and post-deploy smoke are not bound</b> — they're budget / deploy gates with no per-change test file to map to.</p>
+</section>
+
+<!-- 15c REVIEW + SCAN -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · code review + code scan</div>
+  <h2>What humans miss, handed to <span class="accent">machines &amp; multiple models</span></h2>
+  <div class="cols">
+    <div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">Heterogeneous-LLM code review — <span style="color:var(--brass-soft)">an enforced deploy gate (ADR-076)</span></h3>
+      <ul>
+        <li><code>/multi-review</code> — fans <code>git diff main...HEAD</code> out to <b>three</b> providers (Claude · Gemini CLI · Codex CLI) in parallel, then synthesises a cross-model agreement report. One model's blind spot the other two usually catch.</li>
+        <li><b>strict-review triggers</b>: when the diff touches an aggregate/UC/router/migration/ADR/CLAUDE.md, review is <b>no longer a suggestion — it's mandatory</b>. You must run review and resolve every critical (or explicitly waive it) before merging.</li>
+        <li><b>How it's enforced</b> (branch-protection required-review is 403 on this plan, so it reuses the ADR-065 lever): the verdict travels as a commit trailer <code>REVIEW-VERDICT: pass</code> / <code>REVIEW-WAIVED: &lt;reason&gt;</code>; a <code>review-gate</code> job <em>inside</em> <code>checks</code> verifies it for a strict diff → <b>no review → checks red → no image → no deploy</b>.</li>
+        <li><b>Two layers</b>: the <code>review-guard.sh</code> PreToolUse hook blocks <code>gh pr merge</code> at the moment of action (fast feedback); the CI <code>review-gate</code> is the real wall. Honest bound: it enforces "review ran + criticals resolved/waived", not review <em>quality</em>.</li>
+        <li><code>/security-review</code> — a dedicated security pass over the change.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">5 code scans (<code>security.yml</code>)</h3>
+      <table>
+        <tr><th>Scan</th><th>gate</th></tr>
+        <tr><td>gitleaks (secret leak)</td><td><span class="pill block">BLOCK any secret</span></td></tr>
+        <tr><td>pip-audit / npm audit (dep CVEs)</td><td><span class="pill block">block CISA KEV only</span> rest warn</td></tr>
+        <tr><td>bandit (Python SAST)</td><td><span class="pill warn">WARN</span></td></tr>
+        <tr><td>trivy (image vulns)</td><td><span class="pill block">only fixable CRITICAL blocks</span></td></tr>
+      </table>
+      <p class="lead" style="margin-top:.6rem;font-size:.9rem"><b>The KEV-gating trick:</b> block only on CVEs that are <em>actually being exploited in the wild</em>, warn on the rest — so vuln noise doesn't jam every merge.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 15d VAULT -->
+<section class="slide">
+  <div class="eyebrow">DevOps · secrets design (Vault)</div>
+  <h2>Secrets: one KEK, <span class="accent">kept out of the pods that shouldn't see them</span>, encrypted even in git</h2>
+  <div class="cols3">
+    <div class="card">
+      <h3>① One KEK encrypts the data</h3>
+      <div class="t">Fernet symmetric encryption, a single KEK (base64 32-byte). The KEK is injected from a k8s Secret via <code>envFrom</code> as <code>MYWB_PASSWORD_VAULT_KEK</code> — <b>never read from .env / cmdline</b>. Plaintext is always wrapped in <code>SecretStr</code> to prevent accidental logging.</div>
+    </div>
+    <div class="card">
+      <h3>② Secrets never enter the agent pod</h3>
+      <div class="t">The Warren runtime pod <b>cannot see</b> the KEK / OAuth / broker credentials. Data operations go through a <b>per-session short-lived token</b> callback back to the api (which alone holds the KEK + DB). The einvoice-scraper is the same: Google-blind, credentials passed per request.</div>
+    </div>
+    <div class="card">
+      <h3>③ GitOps secrets encrypted in git</h3>
+      <div class="t"><b>SOPS + age</b> encrypts secret manifests and <em>commits them to git</em> (version-controlled, one KEK across machines); Flux decrypts in-cluster with the age key. Secrets stop scattering out-of-band.</div>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:1.2rem"><b>Identity:</b> Google OAuth login + a server-issued session cookie (the DB stores only the token's SHA-256); <code>X-User-Id</code> header is a dev-only fallback, <b>off in prod</b> (else anyone on the public funnel could impersonate).</p>
+</section>
+
 <!-- 16 FULL LOOP -->
 <section class="slide">
   <div class="eyebrow">How it all fits</div>
@@ -424,7 +492,7 @@ Use an isolated worktree:
     <div class="step gate"><span class="s">4 · push / PR</span>full CI checks</div>
   </div>
   <div class="flow" style="margin-top:.6rem">
-    <div class="step gate"><span class="s">5 · merge</span>checks on main</div><div class="arrow">→</div>
+    <div class="step gate"><span class="s">5 · merge</span>checks + review-gate on main</div><div class="arrow">→</div>
     <div class="step ok"><span class="s">6 · build</span>image ONLY if checks green</div><div class="arrow">→</div>
     <div class="step ok"><span class="s">7 · deploy</span>flux · immutable ref</div><div class="arrow">→</div>
     <div class="step ok"><span class="s">8 · verify</span>running==intended + smoke</div>
