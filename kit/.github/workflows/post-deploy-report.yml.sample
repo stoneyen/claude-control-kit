@@ -1,0 +1,74 @@
+# GitHub Actions (self-hosted runner, ADR-059) — Release report (ADR-077).
+#
+# One HTML summary page per deployed commit. Chained off the SAME signal that
+# authorizes a deploy (ADR-065): `checks` COMPLETING `success` on main. That is
+# the moment a commit is cleared to build an image + roll out via Flux, so it is
+# the deterministic "this will deploy" event (Flux rollout itself has no
+# CI-observable completion). Generates deploy/reports/<sha>.html + index and
+# commits it back to main with [skip ci] so the push does NOT re-trigger checks/
+# image builds (loop broken — see ADR-077 Consequences).
+name: post-deploy-report
+on:
+  workflow_run:
+    workflows: ["checks"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "commit SHA to (re)generate a report for"
+        required: false
+permissions:
+  contents: write
+concurrency:
+  group: post-deploy-report
+  cancel-in-progress: false
+jobs:
+  report:
+    runs-on: [self-hosted, Linux, ARM64]
+    # github.com only (Forgejo also reads .github/workflows); manual dispatch
+    # always allowed; automated runs ONLY when the checks gate went green.
+    if: >
+      github.server_url == 'https://github.com' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.workflow_run.conclusion == 'success')
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
+      INPUT_SHA: ${{ github.event.inputs.sha }}
+    steps:
+      - name: generate + commit release report
+        run: |
+          set -eu
+          rm -rf src   # the runner reuses the workdir between runs
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/<OWNER>/<REPO>.git" src
+          cd src
+          SHA="${INPUT_SHA:-${TRIGGER_SHA:-$GITHUB_SHA}}"
+          git checkout "$SHA"
+
+          # Generate against the working tree at $SHA (inventory) + the Actions
+          # API for $SHA (CI/scan/review). gh auto-auths via GH_TOKEN.
+          python3 deploy/scripts/gen_release_report.py generate \
+            --sha "$SHA" --repo <OWNER>/<REPO>
+
+          # Commit the report onto main (fast-forward; [skip ci] prevents the
+          # push from re-triggering checks → no workflow_run loop).
+          git config user.name  "mywb-release-bot"
+          git config user.email "release-bot@mywb.local"
+          git fetch origin main
+          git checkout -B main origin/main
+          # regenerate onto the fresh main tip so the file is present after the checkout
+          python3 deploy/scripts/gen_release_report.py generate \
+            --sha "$SHA" --repo <OWNER>/<REPO>
+          git add deploy/reports
+          if git diff --cached --quiet; then
+            echo "release report unchanged — nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore(release-report): summary for ${SHA:0:8} [skip ci]"
+          # rebase-and-retry against concurrent bot pushes
+          for i in 1 2 3; do
+            if git push origin main; then echo "pushed"; break; fi
+            echo "push rejected (attempt $i) — rebasing"; git fetch origin main; git rebase origin/main || true
+            [ "$i" = 3 ] && { echo "giving up after 3 attempts"; exit 1; }
+          done

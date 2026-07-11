@@ -481,6 +481,33 @@ Use an isolated worktree:
   <p class="lead" style="margin-top:1.2rem"><b>Identity:</b> Google OAuth login + a server-issued session cookie (the DB stores only the token's SHA-256); <code>X-User-Id</code> header is a dev-only fallback, <b>off in prod</b> (else anyone on the public funnel could impersonate).</p>
 </section>
 
+<!-- 15e RELEASE REPORT -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · the pipeline <span class="accent">reports on itself</span> (ADR-077)</div>
+  <h2>Every deploy leaves a <span class="accent">one-page report card</span></h2>
+  <p class="sub">The evidence is otherwise scattered across Actions run pages, commit trailers, and the filesystem. Collapse it into one HTML page per deployed commit — and make producing that page mandatory too.</p>
+  <div class="cols">
+    <div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">What one report collapses</h3>
+      <ul>
+        <li><b>Cumulative inventory</b>: counted from the working tree at that commit — ADRs / entity specs / use-case specs / lessons / bounded contexts / migrations.</li>
+        <li><b>This release</b>: queried from the Actions API for the SHA — CI/CD workflow conclusions, the <code>checks</code> jobs (= gates + tests + review-gate), the <code>security.yml</code> jobs (= code scans).</li>
+        <li><b>Code-review verdict</b>: read from the commit's <code>REVIEW-VERDICT</code> / <code>REVIEW-WAIVED</code> trailer (ADR-076).</li>
+        <li><b>Graceful degradation</b>: with no <code>gh</code> / no network it still emits the inventory page and marks the Actions sections "not collected" rather than implying zero results.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">How it's <b>guaranteed every time</b></h3>
+      <ul>
+        <li><b>Producer (unconditional)</b>: <code>post-deploy-report.yml</code> hangs off <code>workflow_run: checks==success</code> (the ADR-065 deploy-authorization point) — every deploy-bound commit fires it, generating <code>deploy/reports/&lt;sha&gt;.html</code> and committing it back to main.</li>
+        <li><b>Loop-safe</b>: the report commit carries <code>[skip ci]</code> → checks never runs → the <code>workflow_run</code> trigger can't re-fire; <code>deploy/reports/</code> is also outside the image-build path filters.</li>
+        <li><b>Verifier (second signal)</b>: <code>verify-deployed-code.sh</code> asserts the report exists for the commit (loud warning; fatal only under <code>MYWB_REQUIRE_RELEASE_REPORT=1</code>, so the async race can't flake it).</li>
+      </ul>
+      <p class="lead" style="margin-top:.5rem;font-size:.88rem;color:var(--muted)"><b style="color:var(--brass-soft)">Honest bound:</b> the report is produced at deploy <em>authorization</em> (checks green), not at Flux-rollout completion (which has no CI-observable event) — the verifier covers the rollout-confirmation half.</p>
+    </div>
+  </div>
+</section>
+
 <!-- 16 FULL LOOP -->
 <section class="slide">
   <div class="eyebrow">How it all fits</div>

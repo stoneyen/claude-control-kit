@@ -480,6 +480,33 @@ $ git checkout main
   <p class="lead" style="margin-top:1.2rem"><b>身分:</b>Google OAuth 登入 + server 發的 session cookie(DB 只存 token 的 SHA-256);<code>X-User-Id</code> header 僅 dev fallback,<b>prod 關閉</b>(否則公開 funnel 上任何人可冒充)。</p>
 </section>
 
+<!-- 15e RELEASE REPORT -->
+<section class="slide">
+  <div class="eyebrow">CI/CD · 讓管線<span class="accent">為自己作證</span>(ADR-077)</div>
+  <h2>每次部署,都留下一頁<span class="accent">成績單</span></h2>
+  <p class="sub">所有證據原本散在 Actions run 頁、commit trailer、檔案系統各處。把它們收斂成「每個部署 commit 一頁 HTML」——這頁本身也是強制產出的。</p>
+  <div class="cols">
+    <div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">一頁 report 收斂什麼</h3>
+      <ul>
+        <li><b>累積庫存</b>:從當下這個 commit 的工作樹數出 ADR / entity spec / use-case spec / lesson / bounded context / migration 的數量。</li>
+        <li><b>本次發布</b>:對這個 SHA 查 Actions API —— CI/CD 各 workflow 結論、<code>checks</code> 的 job(= gate + 測試 + review-gate)、<code>security.yml</code> 的 job(= code scan)。</li>
+        <li><b>code review verdict</b>:讀 commit 的 <code>REVIEW-VERDICT</code> / <code>REVIEW-WAIVED</code> trailer(ADR-076)。</li>
+        <li><b>優雅降級</b>:沒有 <code>gh</code> / 沒網路時,仍出庫存頁,把 Actions 區塊標「未蒐集」而非假裝零結果。</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:.4rem">怎麼<b>確保每次都發生</b></h3>
+      <ul>
+        <li><b>產出端(無條件保證)</b>:<code>post-deploy-report.yml</code> 掛在 <code>workflow_run: checks==success</code>(= ADR-065 的部署授權點)—— 每個要部署的 commit 必觸發,產出 <code>deploy/reports/&lt;sha&gt;.html</code> 並 commit 回 main。</li>
+        <li><b>迴圈安全</b>:report commit 帶 <code>[skip ci]</code> → checks 不跑 → <code>workflow_run</code> 不再觸發,不會無限迴圈;<code>deploy/reports/</code> 也在 image build 的 path filter 之外。</li>
+        <li><b>驗證端(第二訊號)</b>:<code>verify-deployed-code.sh</code> 斷言該 commit 的 report 存在(大聲警告;<code>MYWB_REQUIRE_RELEASE_REPORT=1</code> 才致命,避開 async race 假失敗)。</li>
+      </ul>
+      <p class="lead" style="margin-top:.5rem;font-size:.88rem;color:var(--muted)"><b style="color:var(--brass-soft)">誠實邊界:</b>report 產於部署<em>授權</em>當下(checks 綠),非 Flux rollout 完成(後者沒有 CI 可觀測事件);rollout 由 verify 那端補確認。</p>
+    </div>
+  </div>
+</section>
+
 <!-- 16 FULL LOOP -->
 <section class="slide">
   <div class="eyebrow">整體如何串起來</div>

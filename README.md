@@ -19,6 +19,14 @@ controls with one command:
   `.claude/settings.hooks.json` (hooks block to merge), and a CI
   `checks.yml.sample` carrying the **workflow_run deploy-gate** pattern (a red
   `checks` blocks the deploy).
+- **Release report** (ADR-077 pattern) — `scripts/gen_release_report.py` renders
+  one self-contained HTML summary per deployed commit (cumulative ADR/spec/lesson
+  inventory + that release's CI / test / review / scan results, read from the
+  Actions API; graceful degradation with no `gh`). `.github/workflows/post-deploy-report.yml.sample`
+  chains it off `workflow_run: checks==success` and commits the report back with
+  `[skip ci]` (loop-safe), so **every deploy leaves a report**. Edit the
+  `<OWNER>/<REPO>` placeholders and the project-specific inventory rows
+  (bounded-contexts / migrations counts) for your layout.
 
 ## Install into a project
 
@@ -41,6 +49,10 @@ After installing:
    a deploy a red gate must block, use the `workflow_run` pattern documented in it.
 5. Add a `cw` shell function to your rc pointing at the repo's
    `scripts/claude-worktree.sh`; start sessions with `cw` instead of `claude`.
+6. (Optional, ADR-077) Copy `.github/workflows/post-deploy-report.yml.sample` →
+   `post-deploy-report.yml`, replace `<OWNER>/<REPO>`, and adapt the inventory
+   rows in `scripts/gen_release_report.py` to your layout — every deploy then
+   leaves a committed HTML report card under `deploy/reports/`.
 
 ## Profiles — ready-made rulesets
 
