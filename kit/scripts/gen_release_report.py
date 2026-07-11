@@ -184,10 +184,89 @@ def collect_actions(repo: str | None, sha: str) -> dict:
         jd = _gh_json(f"repos/{repo}/actions/runs/{r['id']}/jobs?per_page=100")
         jobs = (jd or {}).get("jobs", []) if jd else []
         jobs_by_run[name] = [
-            {"name": j.get("name"), "conclusion": j.get("conclusion") or j.get("status")}
+            {
+                "name": j.get("name"),
+                "conclusion": j.get("conclusion") or j.get("status"),
+                "started_at": j.get("started_at"),
+                "completed_at": j.get("completed_at"),
+            }
             for j in jobs
         ]
     return {"available": True, "runs": list(latest.values()), "jobs_by_run": jobs_by_run, "latest": latest}
+
+
+# ─────────────────────────────── timing ─────────────────────────────────────
+
+
+def _parse_ts(s: str | None) -> float | None:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except (ValueError, AttributeError):
+        return None
+
+
+def _job_intervals(jobs: list) -> list[tuple[float, float]]:
+    out = []
+    for j in jobs:
+        a, b = _parse_ts(j.get("started_at")), _parse_ts(j.get("completed_at"))
+        if a is not None and b is not None and b >= a:
+            out.append((a, b))
+    return out
+
+
+def _active(intervals: list[tuple[float, float]]) -> float:
+    """Total ACTIVE seconds = length of the union of intervals. Overlapping
+    parallel jobs count once; idle gaps between them are excluded."""
+    if not intervals:
+        return 0.0
+    total, cur_a, cur_b = 0.0, *intervals[0]
+    for a, b in sorted(intervals)[1:]:
+        if a <= cur_b:
+            cur_b = max(cur_b, b)
+        else:
+            total += cur_b - cur_a
+            cur_a, cur_b = a, b
+    return total + (cur_b - cur_a)
+
+
+def _fmt_dur(sec: float) -> str:
+    sec = int(round(sec))
+    if sec < 60:
+        return f"{sec}s"
+    m, s = divmod(sec, 60)
+    if m < 60:
+        return f"{m}m {s:02d}s"
+    h, m = divmod(m, 60)
+    return f"{h}h {m:02d}m"
+
+
+def collect_timing(actions: dict) -> dict:
+    """Per-stage active durations + a total that EXCLUDES all idle (runner-queue
+    waits AND human waits like a PR sitting open for a merge): we sum the union of
+    active job intervals, never the end-to-end wall clock."""
+    if not actions.get("available"):
+        return {"available": False}
+    jbr = actions.get("jobs_by_run", {})
+    per_stage, all_intervals = [], []
+    for wf, jobs in jbr.items():
+        ivs = _job_intervals(jobs)
+        if not ivs:
+            continue
+        active = _active(ivs)
+        all_intervals.extend(ivs)
+        if active < 1:  # skip stages that did ~no work (e.g. a path-filtered
+            continue    # image build that no-op'd) — they'd clutter with 0s rows
+        per_stage.append({"stage": wf, "active": active,
+                          "start": min(a for a, _ in ivs), "end": max(b for _, b in ivs)})
+    if not all_intervals:
+        return {"available": True, "stages": [], "total_active": 0.0, "wall": 0.0, "idle": 0.0}
+    per_stage.sort(key=lambda s: s["start"])
+    total_active = _active(all_intervals)
+    wall = max(b for _, b in all_intervals) - min(a for a, _ in all_intervals)
+    return {"available": True, "stages": per_stage, "total_active": total_active,
+            "wall": wall, "idle": max(0.0, wall - total_active)}
 
 
 # ─────────────────────────────── rendering ──────────────────────────────────
@@ -274,6 +353,30 @@ def render_html(sha: str, repo: str | None, generated_at: str, require_actions: 
     checks_tbl = _section_jobs(actions, {"checks"}, "Gates · tests · code review (checks workflow)", "no checks run found for this SHA")
     scan_tbl = _section_jobs(actions, {_SCAN_WORKFLOW}, "Code scan (security workflow)", "no security run found for this SHA")
 
+    # timing — per-stage active durations, waits (queue + human) excluded
+    timing = collect_timing(actions)
+    if not timing.get("available"):
+        timing_html = '<p class="muted">Not collected (Actions data unavailable).</p>'
+    elif not timing.get("stages"):
+        timing_html = '<p class="muted">No completed job timing for this SHA.</p>'
+    else:
+        trows = "".join(
+            f"<tr><td>{_esc(s['stage'])}</td><td>{_esc(_fmt_dur(s['active']))}</td></tr>"
+            for s in timing["stages"]
+        )
+        timing_html = (
+            f"<table><tr><th>stage (workflow)</th><th>active time</th></tr>{trows}"
+            f'<tr><td><b>Total active</b></td><td><b>{_esc(_fmt_dur(timing["total_active"]))}</b></td></tr>'
+            f"</table>"
+            f'<p class="lead" style="margin-top:.6rem;font-size:.86rem;color:var(--muted)">'
+            f"<b style=\"color:var(--brass-soft)\">Total active {_esc(_fmt_dur(timing['total_active']))}</b> "
+            f"= the union of stage run-intervals (overlapping parallel jobs counted once). "
+            f"Wall-clock first-start→last-finish was {_esc(_fmt_dur(timing['wall']))}; the "
+            f"{_esc(_fmt_dur(timing['idle']))} difference is idle time <em>excluded</em> — "
+            f"runner-queue waits, between-stage scheduling gaps, and any human wait "
+            f"(a PR sitting open for review/merge). This total counts machine work only.</p>"
+        )
+
     # CI/CD workflow-level roll-up
     cicd_rows = ""
     if actions.get("available") and actions.get("latest"):
@@ -358,6 +461,9 @@ code{{background:#000;padding:.05rem .35rem;border-radius:5px;font-size:.85em;co
 
 <h2>This release · code scan</h2>
 {scan_tbl}
+
+<h2>This release · stage timing <span class="muted" style="font-size:.8rem;font-weight:400">— active work per stage, waits excluded</span></h2>
+{timing_html}
 
 <div class="foot">
   Generated {_esc(generated_at)} · repo {_esc(repo or "(local)")} · SHA <code>{_esc(sha)}</code>.<br>
